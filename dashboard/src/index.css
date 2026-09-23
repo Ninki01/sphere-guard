@@ -1,0 +1,37 @@
+:root {
+  --bg-dark: #F6F3EB;
+  --panel-bg: rgba(255, 255, 255, 0.72);
+  --card-light: #ffffff;
+  --text-main: #2a1010;
+  --text-dark: #2a1010;
+  --text-muted: #869B7E;
+  --accent-green: #869B7E;
+  --accent-blue: #7F2020;
+  --accent-purple: #C9CAAC;
+  --accent-pink: #ec4899;
+  --accent-red: #7F2020;
+
+  --home-red: #7F2020;
+  --home-sage: #869B7E;
+  --home-tan: #C9CAAC;
+  --home-cream: #F6F3EB;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(145deg, #F6F3EB 0%, #C9CAAC 55%, #869B7E 100%);
+  background-attachment: fixed;
+  color: var(--text-main);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+* {
+  box-sizing: border-box;
+}

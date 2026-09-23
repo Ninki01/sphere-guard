@@ -1,0 +1,20 @@
+[Unit]
+Description=SphereGuard SG01 Firebase Uploader
+# Needs internet — wait for the network to come online before starting
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/sphere-guard/robots
+# Credentials are read from the EnvironmentFile — never from the repository
+EnvironmentFile=/etc/sphereguard/uploader.env
+ExecStart=/usr/bin/python3 -m shared.uploader --config sg01/config.yaml
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

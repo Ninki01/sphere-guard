@@ -1,0 +1,2072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Robot Joystick Controller</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg:       #f4f1ec;
+    --panel:    #ffffff;
+    --border:   #ddd8ce;
+    --accent:   #5a6e30;
+    --accent2:  #8b7350;
+    --danger:   #b83232;
+    --ok:       #4a6a28;
+    --purple:   #7a6040;
+    --dim:      #c0b8ac;
+    --text:     #2e2a22;
+    --glow:     0 0 0 2px #5a6e3030, 0 0 12px #5a6e3020;
+    --glow-red: 0 0 0 2px #b8323230, 0 0 12px #b8323220;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Orbitron', monospace;
+    color: var(--text);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px;
+    gap: 12px;
+    overflow-y: auto;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* ── Header ── */
+  header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo { font-size: clamp(14px, 3.5vw, 20px); font-weight: 900; letter-spacing: 0.15em; color: var(--accent); text-shadow: var(--glow); }
+  .logo span { color: var(--accent2); }
+  .logo .robot-id { font-size: 0.55em; color: var(--dim); display: block; letter-spacing: 0.1em; margin-top: 1px; }
+  .status-bar { display: flex; align-items: center; gap: 8px; font-family: 'Share Tech Mono', monospace; font-size: clamp(10px, 2.2vw, 12px); }
+  .cfg-open-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(8px, 1.8vw, 11px);
+    padding: 5px 12px; border-radius: 4px; cursor: pointer;
+    border: 1px solid var(--accent); background: transparent; color: var(--accent);
+    letter-spacing: 0.08em; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s;
+  }
+  .cfg-open-btn:active { background: #eef4e4; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); transition: background 0.3s, box-shadow 0.3s; }
+  .dot.connected { background: var(--ok);     box-shadow: 0 0 8px var(--ok); }
+  .dot.error     { background: var(--danger); box-shadow: var(--glow-red); }
+
+  /* ── Sensor strip ── */
+  .sensor-strip {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .sensor-tile {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 60px;
+    flex: 1;
+  }
+  .sensor-tile .s-label { font-family: 'Share Tech Mono', monospace; font-size: 8px; opacity: 0.5; letter-spacing: 0.1em; }
+  .sensor-tile .s-value { font-size: clamp(13px, 3.2vw, 18px); font-weight: 700; color: var(--accent); font-family: 'Share Tech Mono', monospace; }
+  .sensor-tile .s-unit  { font-family: 'Share Tech Mono', monospace; font-size: 8px; opacity: 0.4; }
+  .sensor-tile.warn .s-value { color: var(--accent2); }
+
+  /* ── Speed test spinner ── */
+  @keyframes sg-spin { to { transform: rotate(360deg); } }
+  .nettest-spin { display: inline-block; animation: sg-spin 1s linear infinite; }
+
+  /* ── Network tile tooltip ── */
+  .net-tile { cursor: pointer; }
+  .net-tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%; transform: translateX(-50%);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 11px;
+    z-index: 200;
+    white-space: nowrap;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.12);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    min-width: 160px;
+    pointer-events: none;
+  }
+  @media (hover: hover) {
+    .net-tile:hover .net-tooltip { display: block; }
+  }
+  .net-tile.tt-open .net-tooltip { display: block; }
+  .net-tt-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+  .net-tt-row:last-child { margin-bottom: 0; }
+  .net-tt-key { color: var(--dim); }
+  .net-tt-val { color: var(--text); }
+
+  /* ── Config drawer network info bar ── */
+  .cfg-net-bar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 10px; margin-bottom: 10px;
+    font-family: 'Share Tech Mono', monospace; font-size: 10px;
+  }
+  .cfg-net-key { color: var(--dim); letter-spacing: 0.08em; }
+  .cfg-net-val { color: var(--accent); font-size: 11px; }
+  .cfg-net-sep { color: var(--border); }
+
+  /* ── Camera panel ── */
+  .cam-panel {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .cam-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+  .cam-mode-btns {
+    display: flex;
+    gap: 4px;
+  }
+  .cam-mode-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(8px, 1.8vw, 10px);
+    padding: 4px 10px; border-radius: 4px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--dim);
+    letter-spacing: 0.06em; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s, color 0.15s;
+  }
+  .cam-mode-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .cam-feed {
+    width: 100%;
+    max-width: 640px;
+    border-radius: 6px;
+    display: block;
+    background: #050810;
+    aspect-ratio: 4/3;
+    object-fit: cover;
+  }
+  .cam-split {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+  .cam-half {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .cam-half .cam-feed { aspect-ratio: 4/3; }
+  .cam-role-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(7px, 1.6vw, 9px);
+    color: var(--dim);
+    letter-spacing: 0.12em;
+  }
+  .cam-status {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(8px, 1.8vw, 10px);
+    color: var(--dim);
+    letter-spacing: 0.08em;
+  }
+  .cam-status.live { color: var(--ok); }
+
+  /* ── IMU chart panel ── */
+  .chart-panel {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color 0.3s, opacity 0.3s;
+  }
+  .chart-panel.recording { border-color: var(--danger); box-shadow: 0 0 10px #ff2d5528; }
+  .chart-panel.frozen    { opacity: 0.65; }
+  .chart-hdr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+  .chart-hdr .panel-title { border: none; padding: 0; margin: 0; flex: 1; }
+  .chart-toggle-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: #8a8070;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(7px, 1.8vw, 9px);
+    letter-spacing: 0.06em;
+    padding: 3px 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+  }
+  .chart-body { display: flex; flex-direction: column; gap: 6px; }
+  .chart-cv   { width: 100%; height: 88px; border-radius: 4px; display: block;
+                background: #faf8f4; border: 1px solid #ddd8ce; }
+
+  /* ── Joystick ── */
+  .joystick-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .joystick-zone {
+    width: clamp(210px, 58vw, 290px);
+    height: clamp(210px, 58vw, 290px);
+    border-radius: 50%;
+    background: var(--panel);
+    border: 2px solid var(--border);
+    position: relative;
+    touch-action: none;
+    box-shadow: inset 0 0 40px rgba(90,110,48,0.06);
+    cursor: grab;
+  }
+  .joystick-zone.active {
+    border-color: var(--accent);
+    box-shadow: var(--glow), inset 0 0 40px rgba(90,110,48,0.10);
+    cursor: grabbing;
+  }
+
+  .joystick-zone::before,
+  .joystick-zone::after {
+    content: '';
+    position: absolute;
+    background: var(--border);
+    pointer-events: none;
+  }
+  .joystick-zone::before { width: 1px; height: 100%; left: 50%; transform: translateX(-50%); }
+  .joystick-zone::after  { height: 1px; width: 100%; top: 50%;  transform: translateY(-50%); }
+
+  .joystick-knob {
+    width: clamp(52px, 14vw, 72px);
+    height: clamp(52px, 14vw, 72px);
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #e8e4dc, #f8f6f2);
+    border: 2px solid var(--accent);
+    box-shadow: var(--glow);
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .joystick-zone.active .joystick-knob {
+    background: radial-gradient(circle at 35% 35%, #d8e8c4, #eef4e4);
+  }
+
+  .joy-label {
+    position: absolute;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(8px, 2vw, 10px);
+    color: #c0b8a8;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+  }
+  .joy-label.top    { top: 8px;    left: 50%; transform: translateX(-50%); }
+  .joy-label.bottom { bottom: 8px; left: 50%; transform: translateX(-50%); }
+  .joy-label.left   { left: 8px;   top: 50%;  transform: translateY(-50%); }
+  .joy-label.right  { right: 8px;  top: 50%;  transform: translateY(-50%); }
+
+  .joy-readout {
+    display: flex;
+    gap: 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(11px, 2.5vw, 13px);
+    color: #8a8070;
+  }
+  .joy-readout b { color: var(--accent); }
+
+  .spin-indicator {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(9px, 2vw, 11px);
+    color: var(--accent2);
+    letter-spacing: 0.1em;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .spin-indicator.active { opacity: 1; }
+
+  /* ── Settings panels ── */
+  .settings-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .panel-title { font-size: clamp(8px, 2vw, 11px); letter-spacing: 0.15em; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 2px; }
+  .panel-title.purple { color: var(--purple); }
+  .panel-title.orange { color: var(--accent2); }
+
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-family: 'Share Tech Mono', monospace; font-size: clamp(7px, 1.6vw, 10px); color: #4a7a9a; letter-spacing: 0.08em; }
+
+  .input-row { display: flex; gap: 6px; align-items: center; }
+
+  input[type="number"] {
+    background: #f8f6f2; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(11px, 2.5vw, 14px); padding: 6px 8px; width: 100%;
+    outline: none; transition: border-color 0.2s; -webkit-appearance: none; appearance: none;
+  }
+  input[type="number"]:focus { border-color: var(--accent); }
+
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px; background: var(--dim); border-radius: 2px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 6px var(--accent); cursor: pointer;
+  }
+  input[type="range"].purple::-webkit-slider-thumb { background: var(--purple); box-shadow: 0 0 6px var(--purple); }
+  input[type="range"].orange::-webkit-slider-thumb { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+
+  .range-val { font-family: 'Share Tech Mono', monospace; font-size: clamp(10px, 2.2vw, 13px); color: var(--accent); min-width: 38px; text-align: right; }
+  .range-val.purple { color: var(--purple); }
+  .range-val.orange { color: var(--accent2); }
+
+  /* ── Record bar ── */
+  .rec-bar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .rec-btn {
+    background: transparent; border: 1px solid var(--ok); border-radius: 6px;
+    color: var(--ok); font-family: 'Orbitron', monospace;
+    font-size: clamp(8px, 2vw, 11px); font-weight: 700; letter-spacing: 0.1em;
+    padding: 8px 14px; cursor: pointer; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s; white-space: nowrap;
+  }
+  .rec-btn:active { background: #001a10; }
+  .rec-btn.recording {
+    border-color: var(--danger); color: var(--danger);
+    animation: rec-pulse 1s ease-in-out infinite;
+  }
+  @keyframes rec-pulse {
+    0%, 100% { box-shadow: none; }
+    50%       { box-shadow: var(--glow-red); }
+  }
+  .rec-filename {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(8px, 1.8vw, 10px); color: var(--danger);
+    opacity: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; flex: 1; transition: opacity 0.3s;
+  }
+  .rec-filename.show { opacity: 1; }
+
+  .apply-btn {
+    background: transparent; border: 1px solid var(--accent); border-radius: 6px;
+    color: var(--accent); font-family: 'Orbitron', monospace;
+    font-size: clamp(7px, 1.8vw, 10px); font-weight: 700; letter-spacing: 0.1em;
+    padding: 7px; cursor: pointer; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s, box-shadow 0.15s; width: 100%;
+  }
+  .apply-btn:active { background: #eef4e4; box-shadow: var(--glow); }
+  .apply-btn.purple { border-color: var(--purple); color: var(--purple); }
+  .apply-btn.purple:active { background: #f4f0e8; box-shadow: var(--glow); }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #0d2030; border: 1px solid var(--accent);
+    color: var(--accent); font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; padding: 8px 18px; border-radius: 20px;
+    box-shadow: var(--glow); opacity: 0; pointer-events: none;
+    transition: opacity 0.3s; white-space: nowrap; z-index: 9999;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ── Config drawer ── */
+  .cfg-backdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.25);
+    z-index: 200;
+  }
+  .cfg-backdrop.open { display: block; }
+
+  .cfg-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(380px, 100vw);
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+    z-index: 201;
+    transform: translateX(100%);
+    transition: transform 0.2s ease-out;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    touch-action: pan-y;
+  }
+  .cfg-drawer.open { transform: translateX(0); }
+
+  .cfg-drawer-hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+  }
+  .cfg-drawer-title {
+    font-size: 13px; font-weight: 700; letter-spacing: 0.15em; color: var(--accent);
+  }
+  .cfg-close-btn {
+    background: transparent; border: 1px solid var(--border); border-radius: 4px;
+    color: var(--dim); font-size: 13px; width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .cfg-close-btn:active { border-color: var(--accent); color: var(--accent); }
+
+  .cfg-drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Collapsible sections */
+  .cfg-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .cfg-sec-hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 9px; letter-spacing: 0.15em; color: var(--accent);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .cfg-sec-hdr:active { background: #f4f2ee; }
+  .cfg-chev { font-size: 9px; color: var(--dim); transition: transform 0.2s; }
+  .cfg-sec-hdr.collapsed .cfg-chev { transform: rotate(-90deg); }
+
+  .cfg-sec-body {
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Drawer fields */
+  .cfg-field { display: flex; flex-direction: column; gap: 4px; }
+  .cfg-field label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px; color: #4a7a9a; letter-spacing: 0.08em;
+  }
+  .cfg-input-row { display: flex; gap: 6px; align-items: center; }
+  .cfg-range {
+    -webkit-appearance: none; appearance: none;
+    flex: 1; height: 4px; background: var(--dim); border-radius: 2px; outline: none;
+  }
+  .cfg-range::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 5px var(--accent); cursor: pointer;
+  }
+  .cfg-range.purple::-webkit-slider-thumb { background: var(--purple); box-shadow: 0 0 5px var(--purple); }
+  .cfg-range-val {
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    color: var(--accent); min-width: 38px; text-align: right;
+  }
+  .cfg-range-val.purple { color: var(--purple); }
+  .cfg-num {
+    background: #f8f6f2; border: 1px solid var(--border); border-radius: 5px;
+    color: var(--text); font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; padding: 5px 7px; width: 100%;
+    outline: none; -webkit-appearance: none; appearance: none;
+  }
+  .cfg-num:focus { border-color: var(--accent); }
+  .cfg-toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .cfg-toggle-row label { font-size: 10px; }
+  .cfg-check { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+  .cfg-note {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px; color: var(--accent2); letter-spacing: 0.06em;
+  }
+  .cfg-btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cfg-btn {
+    flex: 1; min-width: 60px;
+    background: transparent; border: 1px solid var(--border); border-radius: 5px;
+    color: var(--dim); font-family: 'Share Tech Mono', monospace;
+    font-size: 9px; letter-spacing: 0.06em; padding: 6px 4px;
+    cursor: pointer; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .cfg-btn:active { border-color: var(--accent); color: var(--accent); }
+  .cfg-save-btn {
+    width: 100%; padding: 11px;
+    background: var(--accent); border: none; border-radius: 7px;
+    color: #fff; font-family: 'Orbitron', monospace;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+    cursor: pointer; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 0.15s;
+    margin-top: 4px;
+  }
+  .cfg-save-btn:active { opacity: 0.8; }
+
+  /* IMU cal bars */
+  .cal-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .cal-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px; color: var(--dim); width: 36px; letter-spacing: 0.06em;
+  }
+  .cal-bar {
+    flex: 1; height: 8px; background: #eee; border-radius: 4px; overflow: hidden;
+  }
+  .cal-fill { height: 100%; border-radius: 4px; transition: width 0.4s, background 0.4s; }
+  .cal-val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px; color: var(--text); min-width: 24px; text-align: right;
+  }
+
+  /* Sensor table in drawer */
+  .cfg-sensor-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+  }
+  .cfg-sensor-tbl th {
+    text-align: left; padding: 4px 6px;
+    border-bottom: 1px solid var(--border); color: var(--dim); letter-spacing: 0.08em;
+  }
+  .cfg-sensor-tbl td {
+    padding: 4px 6px; border-bottom: 1px solid #f0ece4;
+    color: var(--text);
+  }
+  .cfg-sensor-tbl td.online  { color: var(--ok); }
+  .cfg-sensor-tbl td.offline { color: var(--danger); }
+
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">SPHERE<span>GUARD</span><span class="robot-id" id="robot-id-label"></span></div>
+  <button class="cfg-open-btn" onclick="openConfig()">⚙ CONFIG</button>
+  <div class="status-bar">
+    <div class="dot" id="status-dot"></div>
+    <span id="status-text">OFFLINE</span>
+  </div>
+</header>
+
+<!-- Drive offline banner — hidden until _hardware.drive.online === false -->
+<div id="drive-offline-banner" hidden
+     style="background:var(--danger);color:#fff;text-align:center;padding:6px 12px;
+            font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:0.1em;
+            position:sticky;top:env(safe-area-inset-top,0px);z-index:90;">
+  ⚠ DRIVE HARDWARE OFFLINE — motors disabled, attempting recovery…
+</div>
+
+<!-- Joystick -->
+<div class="joystick-wrapper">
+  <div class="joystick-zone" id="joy-zone">
+    <span class="joy-label top">FWD</span>
+    <span class="joy-label bottom">BACK</span>
+    <span class="joy-label left">L</span>
+    <span class="joy-label right">R</span>
+    <div class="joystick-knob" id="joy-knob"></div>
+  </div>
+  <div class="joy-readout">
+    <span>X: <b id="joy-x-val">0.00</b></span>
+    <span>Y: <b id="joy-y-val">0.00</b></span>
+  </div>
+  <div class="spin-indicator" id="spin-ind">⟳ SPIN BOOST ACTIVE</div>
+</div>
+
+<!-- Record control -->
+<div class="rec-bar">
+  <button class="rec-btn" id="rec-btn" onclick="toggleRecord()">● START REC</button>
+  <span class="rec-filename" id="rec-filename"></span>
+</div>
+
+<!-- Sensor strip -->
+<div class="sensor-strip">
+  <div class="sensor-tile" id="tile-pitch">
+    <span class="s-label">PITCH</span>
+    <span class="s-value" id="s-pitch">—</span>
+    <span class="s-unit">°</span>
+  </div>
+  <div class="sensor-tile" id="tile-roll">
+    <span class="s-label">ROLL</span>
+    <span class="s-value" id="s-roll">—</span>
+    <span class="s-unit">°</span>
+  </div>
+  <div class="sensor-tile">
+    <span class="s-label">HEADING</span>
+    <span class="s-value" id="s-heading">—</span>
+    <span class="s-unit">°</span>
+  </div>
+  <div class="sensor-tile">
+    <span class="s-label">TEMP</span>
+    <span class="s-value" id="s-temp">—</span>
+    <span class="s-unit">°C</span>
+  </div>
+  <div class="sensor-tile">
+    <span class="s-label">HUM</span>
+    <span class="s-value" id="s-hum">—</span>
+    <span class="s-unit">%</span>
+  </div>
+  <div class="sensor-tile" id="tile-pi-temp">
+    <span class="s-label">PI TEMP</span>
+    <span class="s-value" id="s-pi-temp">—</span>
+    <span class="s-unit">°C</span>
+  </div>
+  <div class="sensor-tile net-tile" id="tile-wifi" onclick="toggleNetTooltip(event)" style="position:relative">
+    <span class="s-label">NETWORK</span>
+    <span class="s-value" id="s-wifi">—</span>
+    <span class="s-unit" id="s-wifi-unit">dBm</span>
+    <div class="net-tooltip" id="net-tooltip"></div>
+  </div>
+  <div class="sensor-tile" id="tile-internet">
+    <span class="s-label">INTERNET</span>
+    <span class="s-value" id="s-internet">—</span>
+  </div>
+</div>
+
+<!-- Camera feed -->
+<div class="cam-panel">
+  <div class="cam-header">
+    <div class="panel-title">▶ CAMERA</div>
+    <div class="cam-mode-btns">
+      <button id="cam-btn-rgb"     class="cam-mode-btn active" onclick="setCamMode('rgb')">RGB</button>
+      <button id="cam-btn-thermal" class="cam-mode-btn"        onclick="setCamMode('thermal')">THERMAL</button>
+      <button id="cam-btn-both"    class="cam-mode-btn"        onclick="setCamMode('both')">BOTH</button>
+    </div>
+  </div>
+  <!-- Single-camera view -->
+  <div id="cam-single-view" style="width:100%">
+    <img class="cam-feed" id="cam-feed-single" alt="camera feed"
+         onload="onCamLoad('single')" onerror="onCamError('single')">
+  </div>
+  <!-- Dual-camera view -->
+  <div id="cam-both-view" class="cam-split" style="display:none; width:100%">
+    <div class="cam-half">
+      <div class="cam-role-label">RGB</div>
+      <img class="cam-feed" id="cam-feed-rgb" alt="RGB"
+           onload="onCamLoad('rgb')" onerror="onCamError('rgb')">
+    </div>
+    <div class="cam-half">
+      <div class="cam-role-label">THERMAL</div>
+      <img class="cam-feed" id="cam-feed-thermal" alt="THERMAL"
+           onload="onCamLoad('thermal')" onerror="onCamError('thermal')">
+    </div>
+  </div>
+  <span class="cam-status" id="cam-status">CONNECTING...</span>
+</div>
+
+<!-- IMU Charts -->
+<div class="chart-panel" id="chart-panel">
+  <div class="chart-hdr">
+    <span class="panel-title">◉ IMU CHARTS</span>
+    <button class="chart-toggle-btn" id="chart-toggle" onclick="toggleCharts()">▲ HIDE</button>
+  </div>
+  <div class="chart-body" id="chart-body">
+    <canvas class="chart-cv" id="cv-orient"></canvas>
+    <canvas class="chart-cv" id="cv-accel"></canvas>
+    <canvas class="chart-cv" id="cv-gyro"></canvas>
+  </div>
+</div>
+
+<!-- Settings panels -->
+<div class="settings-grid">
+
+  <!-- Motor Speed Panel -->
+  <div class="panel">
+    <div class="panel-title">⚡ MOTOR SPEED</div>
+
+    <div class="field">
+      <label>FORWARD (0.0 – 1.0)</label>
+      <div class="input-row">
+        <input type="range" id="fwd-slider" min="0" max="100" value="40" oninput="syncSlider('fwd')">
+        <span class="range-val" id="fwd-val">0.40</span>
+      </div>
+      <input type="number" id="fwd-input" min="0" max="1" step="0.01" value="0.40" oninput="syncInput('fwd')">
+    </div>
+
+    <div class="field">
+      <label>BACKWARD (0.0 – 1.0)</label>
+      <div class="input-row">
+        <input type="range" id="bwd-slider" min="0" max="100" value="40" class="orange" oninput="syncSlider('bwd')">
+        <span class="range-val orange" id="bwd-val">0.40</span>
+      </div>
+      <input type="number" id="bwd-input" min="0" max="1" step="0.01" value="0.40" oninput="syncInput('bwd')">
+    </div>
+
+    <div class="field">
+      <label>SPIN BOOST (0.0 – 1.0)</label>
+      <div class="input-row">
+        <input type="range" id="spn-slider" min="0" max="100" value="25" class="purple" oninput="syncSlider('spn')">
+        <span class="range-val purple" id="spn-val">0.25</span>
+      </div>
+      <input type="number" id="spn-input" min="0" max="1" step="0.01" value="0.25" oninput="syncInput('spn')">
+    </div>
+
+    <button class="apply-btn" onclick="applySpeed()">APPLY SPEED</button>
+  </div>
+
+  <!-- Weight Servo Panel -->
+  <div class="panel">
+    <div class="panel-title purple">⚖ WEIGHT SERVO</div>
+
+    <div class="field">
+      <label>CENTER ANGLE (°)</label>
+      <div class="input-row">
+        <input type="range" id="sc-slider" min="0" max="180" value="90" class="purple" oninput="syncSlider('sc')">
+        <span class="range-val purple" id="sc-val">90°</span>
+      </div>
+      <input type="number" id="sc-input" min="0" max="180" step="1" value="90" oninput="syncInput('sc')">
+    </div>
+
+    <div class="field">
+      <label>LEFT LEAN (°)</label>
+      <div class="input-row">
+        <input type="range" id="sl-slider" min="0" max="180" value="135" class="purple" oninput="syncSlider('sl')">
+        <span class="range-val purple" id="sl-val">135°</span>
+      </div>
+      <input type="number" id="sl-input" min="0" max="180" step="1" value="135" oninput="syncInput('sl')">
+    </div>
+
+    <div class="field">
+      <label>RIGHT LEAN (°)</label>
+      <div class="input-row">
+        <input type="range" id="sr-slider" min="0" max="180" value="45" class="purple" oninput="syncSlider('sr')">
+        <span class="range-val purple" id="sr-val">45°</span>
+      </div>
+      <input type="number" id="sr-input" min="0" max="180" step="1" value="45" oninput="syncInput('sr')">
+    </div>
+
+    <button class="apply-btn purple" onclick="applyServo()">APPLY SERVO</button>
+  </div>
+
+</div>
+
+<!-- ── Config drawer ── -->
+<div id="cfg-backdrop" class="cfg-backdrop" onclick="closeConfig()"></div>
+<div id="cfg-drawer" class="cfg-drawer" role="dialog" aria-label="Configuration">
+  <div class="cfg-drawer-hdr">
+    <span class="cfg-drawer-title">⚙ CONFIGURATION</span>
+    <button class="cfg-close-btn" onclick="closeConfig()" aria-label="Close">✕</button>
+  </div>
+  <div class="cfg-drawer-body">
+
+    <!-- Network info (live — updated by fetchSensors) -->
+    <div class="cfg-net-bar">
+      <span class="cfg-net-key">IP</span>
+      <span class="cfg-net-val" id="cfg-ip">—</span>
+      <span class="cfg-net-sep">|</span>
+      <span class="cfg-net-key">TYPE</span>
+      <span class="cfg-net-val" id="cfg-net-type">—</span>
+      <span class="cfg-net-sep">|</span>
+      <span class="cfg-net-key">NAME</span>
+      <span class="cfg-net-val" id="cfg-net-name">—</span>
+    </div>
+
+    <!-- Drive speeds -->
+    <div class="cfg-section">
+      <div class="cfg-sec-hdr" onclick="toggleCfgSection(this)">
+        ⚡ DRIVE SPEEDS <span class="cfg-chev">▼</span>
+      </div>
+      <div class="cfg-sec-body">
+        <div class="cfg-field">
+          <label>FORWARD (0–1)</label>
+          <div class="cfg-input-row">
+            <input type="range" class="cfg-range" id="d-fwd-s" min="0" max="100" value="40"
+                   oninput="cfgSyncSlider('d-fwd')">
+            <span class="cfg-range-val" id="d-fwd-v">0.40</span>
+          </div>
+        </div>
+        <div class="cfg-field">
+          <label>BACKWARD (0–1)</label>
+          <div class="cfg-input-row">
+            <input type="range" class="cfg-range" id="d-bwd-s" min="0" max="100" value="40"
+                   oninput="cfgSyncSlider('d-bwd')">
+            <span class="cfg-range-val" id="d-bwd-v">0.40</span>
+          </div>
+        </div>
+        <div class="cfg-field">
+          <label>SPIN BOOST (0–1)</label>
+          <div class="cfg-input-row">
+            <input type="range" class="cfg-range purple" id="d-spn-s" min="0" max="100" value="25"
+                   oninput="cfgSyncSlider('d-spn')">
+            <span class="cfg-range-val purple" id="d-spn-v">0.25</span>
+          </div>
+        </div>
+        <div class="cfg-field">
+          <label>DEADZONE (0–0.5)</label>
+          <input type="number" class="cfg-num" id="d-dz" min="0" max="0.5" step="0.01" value="0.12">
+        </div>
+      </div>
+    </div>
+
+    <!-- Servo angles -->
+    <div class="cfg-section">
+      <div class="cfg-sec-hdr" onclick="toggleCfgSection(this)">
+        ⚖ SERVO ANGLES <span class="cfg-chev">▼</span>
+      </div>
+      <div class="cfg-sec-body">
+        <div class="cfg-field">
+          <label>CENTER (°)</label>
+          <div class="cfg-input-row">
+            <input type="range" class="cfg-range purple" id="d-sc-s" min="0" max="180" value="90"
+                   oninput="cfgSyncSlider('d-sc')">
+            <span class="cfg-range-val purple" id="d-sc-v">90°</span>
+          </div>
+        </div>
+        <div class="cfg-field">
+          <label>LEFT LEAN (°)</label>
+          <div class="cfg-input-row">
+            <input type="range" class="cfg-range purple" id="d-sl-s" min="0" max="180" value="135"
+                   oninput="cfgSyncSlider('d-sl')">
+            <span class="cfg-range-val purple" id="d-sl-v">135°</span>
+          </div>
+        </div>
+        <div class="cfg-field">
+          <label>RIGHT LEAN (°)</label>
+          <div class="cfg-input-row">
+            <input type="range" class="cfg-range purple" id="d-sr-s" min="0" max="180" value="45"
+                   oninput="cfgSyncSlider('d-sr')">
+            <span class="cfg-range-val purple" id="d-sr-v">45°</span>
+          </div>
+        </div>
+        <div class="cfg-btn-row">
+          <button class="cfg-btn" onclick="cfgServoTest('center')">CENTRE</button>
+          <button class="cfg-btn" onclick="cfgServoTest('left')">LEFT</button>
+          <button class="cfg-btn" onclick="cfgServoTest('right')">RIGHT</button>
+          <button class="cfg-btn" onclick="cfgServoTest('stop')">STOP</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Body physical -->
+    <div class="cfg-section">
+      <div class="cfg-sec-hdr collapsed" onclick="toggleCfgSection(this)">
+        ⬤ BODY PHYSICAL <span class="cfg-chev">▼</span>
+      </div>
+      <div class="cfg-sec-body" style="display:none">
+        <div class="cfg-field">
+          <label>SPHERE RADIUS (m)</label>
+          <input type="number" class="cfg-num" id="d-radius" min="0.01" max="0.5" step="0.001" value="0.114">
+        </div>
+        <div class="cfg-field">
+          <label>TOTAL MASS (kg)</label>
+          <input type="number" class="cfg-num" id="d-mass" min="0.1" max="20" step="0.001" value="4.338">
+        </div>
+        <div class="cfg-field">
+          <label>PENDULUM OFFSET (m)</label>
+          <input type="number" class="cfg-num" id="d-pend" min="0" max="0.2" step="0.001" value="0.0">
+        </div>
+      </div>
+    </div>
+
+    <!-- Camera enables -->
+    <div class="cfg-section">
+      <div class="cfg-sec-hdr collapsed" onclick="toggleCfgSection(this)">
+        ▶ CAMERAS <span class="cfg-chev">▼</span>
+      </div>
+      <div class="cfg-sec-body" style="display:none">
+        <div class="cfg-field cfg-toggle-row">
+          <label>RGB CAMERA</label>
+          <input type="checkbox" class="cfg-check" id="d-cam-rgb" checked>
+        </div>
+        <div class="cfg-field cfg-toggle-row">
+          <label>THERMAL CAMERA</label>
+          <input type="checkbox" class="cfg-check" id="d-cam-thermal">
+        </div>
+        <span class="cfg-note">★ camera changes require restart</span>
+      </div>
+    </div>
+
+    <!-- Logging -->
+    <div class="cfg-section">
+      <div class="cfg-sec-hdr collapsed" onclick="toggleCfgSection(this)">
+        ◉ LOGGING <span class="cfg-chev">▼</span>
+      </div>
+      <div class="cfg-sec-body" style="display:none">
+        <div class="cfg-field">
+          <label>SAMPLE RATE (Hz)</label>
+          <input type="number" class="cfg-num" id="d-hz" min="1" max="100" step="1" value="20">
+          <span class="cfg-note">★ sample rate change requires restart</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMU calibration (live) -->
+    <div class="cfg-section">
+      <div class="cfg-sec-hdr collapsed" onclick="toggleCfgSection(this)">
+        ◈ IMU CALIBRATION <span class="cfg-chev">▼</span>
+      </div>
+      <div class="cfg-sec-body" style="display:none">
+        <span class="cfg-note" style="margin-bottom:4px">BNO055 · IMUPLUS mode · updates 1Hz</span>
+        <div class="cal-row">
+          <span class="cal-label">SYS</span>
+          <div class="cal-bar"><div class="cal-fill" id="cal-sys" style="width:0%"></div></div>
+          <span class="cal-val" id="cal-sys-v">0/3</span>
+        </div>
+        <div class="cal-row">
+          <span class="cal-label">GYRO</span>
+          <div class="cal-bar"><div class="cal-fill" id="cal-gyro" style="width:0%"></div></div>
+          <span class="cal-val" id="cal-gyro-v">0/3</span>
+        </div>
+        <div class="cal-row">
+          <span class="cal-label">ACCEL</span>
+          <div class="cal-bar"><div class="cal-fill" id="cal-accel" style="width:0%"></div></div>
+          <span class="cal-val" id="cal-accel-v">0/3</span>
+        </div>
+        <div class="cal-row">
+          <span class="cal-label">MAG ★</span>
+          <div class="cal-bar"><div class="cal-fill" id="cal-mag" style="width:0%"></div></div>
+          <span class="cal-val" id="cal-mag-v">0/3</span>
+        </div>
+        <span class="cfg-note">★ mag not required in IMUPLUS mode</span>
+      </div>
+    </div>
+
+    <!-- Detected sensors (live) -->
+    <div class="cfg-section">
+      <div class="cfg-sec-hdr collapsed" onclick="toggleCfgSection(this)">
+        ◆ DETECTED SENSORS <span class="cfg-chev">▼</span>
+      </div>
+      <div class="cfg-sec-body" style="display:none">
+        <table class="cfg-sensor-tbl" id="cfg-sensor-tbl">
+          <thead>
+            <tr>
+              <th>SENSOR</th>
+              <th>ADDR</th>
+              <th>TYPE</th>
+              <th>STATUS</th>
+            </tr>
+          </thead>
+          <tbody id="cfg-sensor-tbody">
+            <tr><td colspan="4" style="color:var(--dim)">loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Cameras (live) -->
+    <div class="cfg-section">
+      <div class="cfg-sec-hdr collapsed" onclick="toggleCfgSection(this)">
+        ◆ CAMERAS <span class="cfg-chev">▼</span>
+      </div>
+      <div class="cfg-sec-body" style="display:none">
+        <table class="cfg-sensor-tbl">
+          <thead>
+            <tr><th>ROLE</th><th>STATUS</th></tr>
+          </thead>
+          <tbody id="cfg-camera-tbody">
+            <tr><td colspan="2" style="color:var(--dim)">loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Drive hardware (live) -->
+    <div class="cfg-section">
+      <div class="cfg-sec-hdr collapsed" onclick="toggleCfgSection(this)">
+        ◆ DRIVE HARDWARE <span class="cfg-chev">▼</span>
+      </div>
+      <div class="cfg-sec-body" style="display:none">
+        <table class="cfg-sensor-tbl">
+          <thead>
+            <tr><th>COMPONENT</th><th>STATUS</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>PCA9685 + Servos</td>
+              <td id="cfg-drive-status" class="online">ONLINE</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="font-size:9px;color:var(--dim);margin-top:6px">
+          Recovery is automatic — throttle is zeroed after each fault.
+        </p>
+      </div>
+    </div>
+
+    <!-- Network speed test -->
+    <div class="cfg-section">
+      <div class="cfg-sec-hdr collapsed" onclick="toggleCfgSection(this)">
+        ⇅ SPEED TEST <span class="cfg-chev">▼</span>
+      </div>
+      <div class="cfg-sec-body" style="display:none">
+        <div id="nettest-result" style="font-family:'Share Tech Mono',monospace;font-size:10px;
+             line-height:1.8;color:var(--dim);min-height:18px;">No test run yet.</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--dim);
+             margin-top:6px;line-height:1.5;">
+          Briefly uses full link bandwidth. Refused while recording is active.
+        </div>
+        <button class="cfg-btn" id="nettest-btn" onclick="runSpeedTest()"
+                style="margin-top:10px;width:100%;padding:9px;">
+          ⇅ RUN SPEED TEST
+        </button>
+        <div id="nettest-spinner" style="display:none;text-align:center;
+             font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--dim);
+             margin-top:8px;">
+          <span class="nettest-spin">◌</span> RUNNING…
+        </div>
+      </div>
+    </div>
+
+    <!-- Save -->
+    <button class="cfg-save-btn" onclick="cfgSave()">SAVE CONFIGURATION</button>
+
+    <!-- Fusion experimental link -->
+    <div style="margin-top:14px;text-align:center;">
+      <a href="/fusion" style="font-family:'Share Tech Mono',monospace;font-size:10px;
+         color:var(--dim);letter-spacing:0.08em;text-decoration:none;
+         border:1px solid var(--border);border-radius:4px;padding:5px 12px;
+         display:inline-block;transition:color 0.2s,border-color 0.2s;"
+         onmouseover="this.style.color='var(--warn)';this.style.borderColor='var(--warn)'"
+         onmouseout="this.style.color='var(--dim)';this.style.borderColor='var(--border)'">
+        ⊕ FUSION (experimental)
+      </a>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const PI_HOST      = window.location.hostname || "raspberrypi.local";
+  const PI_PORT      = window.location.port     || "5000";
+  const BASE         = `http://${PI_HOST}:${PI_PORT}`;
+  const JOY_URL      = `${BASE}/joystick`;
+  const CMD_URL      = `${BASE}/command`;
+  const SETTINGS_URL = `${BASE}/settings`;
+  const SENSORS_URL  = `${BASE}/sensors`;
+  const RECORD_URL   = `${BASE}/record`;
+  const API_CFG_URL  = `${BASE}/api/config`;
+  const NETTEST_URL  = `${BASE}/api/nettest`;
+
+  // ── Camera ────────────────────────────────────────────────────────────────────
+  let camMode = 'rgb';
+  let camRetryTimers = {};  // role → timer
+
+  const _camFeedSingle  = () => document.getElementById('cam-feed-single');
+  const _camFeedRgb     = () => document.getElementById('cam-feed-rgb');
+  const _camFeedThermal = () => document.getElementById('cam-feed-thermal');
+  const _camStatus      = () => document.getElementById('cam-status');
+
+  function _stopAllFeeds() {
+    for (const r of Object.keys(camRetryTimers)) clearTimeout(camRetryTimers[r]);
+    camRetryTimers = {};
+    for (const img of [_camFeedSingle(), _camFeedRgb(), _camFeedThermal()]) {
+      img.removeAttribute('src');
+    }
+    _camStatus().classList.remove('live');
+    _camStatus().textContent = 'CONNECTING...';
+  }
+
+  function setCamMode(mode) {
+    _stopAllFeeds();
+    camMode = mode;
+
+    const singleView = document.getElementById('cam-single-view');
+    const bothView   = document.getElementById('cam-both-view');
+
+    if (mode === 'both') {
+      singleView.style.display = 'none';
+      bothView.style.display   = '';
+      _camFeedRgb().src     = `${BASE}/stream/rgb`;
+      _camFeedThermal().src = `${BASE}/stream/thermal`;
+      _camStatus().textContent = 'RGB + THERMAL';
+    } else {
+      singleView.style.display = '';
+      bothView.style.display   = 'none';
+      _camFeedSingle().src = `${BASE}/stream/${mode}`;
+    }
+
+    ['rgb','thermal','both'].forEach(m => {
+      document.getElementById(`cam-btn-${m}`).classList.toggle('active', m === mode);
+    });
+  }
+
+  function onCamLoad(role) {
+    if (camRetryTimers[role]) { clearTimeout(camRetryTimers[role]); delete camRetryTimers[role]; }
+    _camStatus().textContent = camMode === 'both' ? 'RGB + THERMAL' : 'LIVE';
+    _camStatus().classList.add('live');
+  }
+
+  function onCamError(role) {
+    _camStatus().classList.remove('live');
+    _camStatus().textContent = 'NO SIGNAL — retrying...';
+    camRetryTimers[role] = setTimeout(() => {
+      if (camMode === 'both') {
+        if (role === 'rgb')     _camFeedRgb().src     = `${BASE}/stream/rgb`;
+        if (role === 'thermal') _camFeedThermal().src = `${BASE}/stream/thermal`;
+      } else if (camMode === role || (role === 'single' && camMode !== 'both')) {
+        _camFeedSingle().src = `${BASE}/stream/${camMode}`;
+      }
+    }, 3000);
+  }
+
+  // Start RGB on load
+  setCamMode('rgb');
+
+  // ── IMU Chart system ──────────────────────────────────────────────────────────
+  const RING_N = 150;   // 30 s × 5 Hz
+
+  class Ring {
+    constructor() {
+      this._b = new Array(RING_N).fill(null);
+      this._h = 0; this._c = 0;
+    }
+    push(v) {
+      this._b[this._h] = v;
+      this._h = (this._h + 1) % RING_N;
+      if (this._c < RING_N) this._c++;
+    }
+    get() {
+      if (this._c === 0) return [];
+      if (this._c < RING_N) return this._b.slice(0, this._c);
+      return [...this._b.slice(this._h), ...this._b.slice(0, this._h)];
+    }
+  }
+
+  const BUFS = {};
+  ['pitch','roll','heading',
+   'lin_acc_x','lin_acc_y','lin_acc_z',
+   'gyro_x','gyro_y','gyro_z'].forEach(k => { BUFS[k] = new Ring(); });
+
+  const CHART_DEFS = [
+    { id: 'cv-orient', title: 'ORIENTATION',
+      L: { min: -90,  max: 90,  ticks: [-90,-45,0,45,90]   },
+      R: { min:   0,  max: 360, ticks: [0,90,180,270,360]  },
+      series: [
+        { key: 'pitch',   lbl: 'PCH', col: '#5a6e30', ax: 'L' },
+        { key: 'roll',    lbl: 'ROL', col: '#8b7350', ax: 'L' },
+        { key: 'heading', lbl: 'HDG', col: '#7a9a5a', ax: 'R' },
+      ]},
+    { id: 'cv-accel',  title: 'LIN ACCEL m/s²',
+      L: { min: -10,  max: 10,  ticks: [-10,-5,0,5,10]     },
+      series: [
+        { key: 'lin_acc_x', lbl: 'X', col: '#5a6e30', ax: 'L' },
+        { key: 'lin_acc_y', lbl: 'Y', col: '#8b7350', ax: 'L' },
+        { key: 'lin_acc_z', lbl: 'Z', col: '#b89050', ax: 'L' },
+      ]},
+    { id: 'cv-gyro',   title: 'GYRO rad/s',
+      L: { min:  -5,  max:  5,  ticks: [-5,-2.5,0,2.5,5]  },
+      series: [
+        { key: 'gyro_x', lbl: 'X', col: '#5a6e30', ax: 'L' },
+        { key: 'gyro_y', lbl: 'Y', col: '#8b7350', ax: 'L' },
+        { key: 'gyro_z', lbl: 'Z', col: '#b89050', ax: 'L' },
+      ]},
+  ];
+
+  let chartsOpen   = true;
+  let chartsFrozen = false;
+  let _failStreak  = 0;
+  const FREEZE_AFTER = 3;
+
+  function toggleCharts() {
+    chartsOpen = !chartsOpen;
+    document.getElementById('chart-body').style.display = chartsOpen ? '' : 'none';
+    document.getElementById('chart-toggle').textContent = chartsOpen ? '▲ HIDE' : '▼ SHOW';
+  }
+
+  function _pushSensorData(d) {
+    for (const k of Object.keys(BUFS)) BUFS[k].push(d[k] ?? 0);
+    _failStreak = 0;
+    if (chartsFrozen) {
+      chartsFrozen = false;
+      document.getElementById('chart-panel').classList.remove('frozen');
+    }
+  }
+
+  function _pushGap() {
+    for (const k of Object.keys(BUFS)) BUFS[k].push(null);
+    _failStreak++;
+    if (_failStreak >= FREEZE_AFTER && !chartsFrozen) {
+      chartsFrozen = true;
+      document.getElementById('chart-panel').classList.add('frozen');
+    }
+  }
+
+  function _ypx(v, mn, mx, pt, ph) {
+    return pt + ph * (1 - (v - mn) / (mx - mn));
+  }
+
+  function _drawChart(def) {
+    const canvas = document.getElementById(def.id);
+    if (!canvas) return;
+    const dpr  = window.devicePixelRatio || 1;
+    const rect  = canvas.getBoundingClientRect();
+    const W = rect.width, H = rect.height;
+    if (W < 10 || H < 10) return;
+
+    const cw = Math.round(W * dpr), ch = Math.round(H * dpr);
+    if (canvas.width !== cw || canvas.height !== ch) {
+      canvas.width = cw; canvas.height = ch;
+    }
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const hasR  = def.series.some(s => s.ax === 'R');
+    const PL = 33, PR = hasR ? 30 : 5, PT = 3, PB = 3;
+    const pw = W - PL - PR, ph = H - PT - PB;
+
+    ctx.fillStyle = '#faf8f4';
+    ctx.fillRect(0, 0, W, H);
+
+    const fsPx = Math.max(7, Math.round(7.5 * Math.min(1, W / 320)));
+    ctx.font = `${fsPx}px "Share Tech Mono",monospace`;
+
+    for (const t of def.L.ticks) {
+      const y = _ypx(t, def.L.min, def.L.max, PT, ph);
+      ctx.strokeStyle = t === 0 ? '#b8c8a0' : '#e0dace';
+      ctx.lineWidth   = t === 0 ? 1.2 : 0.8;
+      ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(PL + pw, y); ctx.stroke();
+      ctx.fillStyle    = '#8a8270';
+      ctx.textAlign    = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(t), PL - 3, y);
+    }
+
+    if (hasR) {
+      for (const t of def.R.ticks) {
+        const y = _ypx(t, def.R.min, def.R.max, PT, ph);
+        ctx.fillStyle    = '#8b7350';
+        ctx.textAlign    = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(t), PL + pw + 3, y);
+      }
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(PL, PT, pw, ph);
+    ctx.clip();
+
+    for (const s of def.series) {
+      const pts = BUFS[s.key].get();
+      const ax  = s.ax === 'R' ? def.R : def.L;
+      const alpha = chartsFrozen ? '66' : '';
+
+      ctx.strokeStyle = s.col + alpha;
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash(s.ax === 'R' ? [4, 3] : []);
+      ctx.beginPath();
+
+      let penDown = false;
+      for (let i = 0; i < pts.length; i++) {
+        const v = pts[i];
+        if (v === null) { penDown = false; continue; }
+        const x = PL + (i / (RING_N - 1)) * pw;
+        const y = _ypx(v, ax.min, ax.max, PT, ph);
+        if (penDown) ctx.lineTo(x, y);
+        else { ctx.moveTo(x, y); penDown = true; }
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const arr  = BUFS[s.key].get();
+      const last = arr.length ? arr[arr.length - 1] : null;
+      if (last !== null) {
+        const yDot = _ypx(last, ax.min, ax.max, PT, ph);
+        ctx.fillStyle = s.col + alpha;
+        ctx.beginPath();
+        ctx.arc(PL + pw, yDot, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    const legFs = Math.max(7, Math.round(7 * Math.min(1, W / 320)));
+    ctx.font = `${legFs}px "Share Tech Mono",monospace`;
+    let lx = PL + 4;
+    for (const s of def.series) {
+      const arr  = BUFS[s.key].get();
+      const last = arr.length ? arr[arr.length - 1] : null;
+      const val  = last !== null ? last.toFixed(1) : '—';
+      const txt  = `${s.lbl}:${val}`;
+      ctx.fillStyle    = s.col + (chartsFrozen ? '66' : '');
+      ctx.textAlign    = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(txt, lx, PT + 3);
+      lx += ctx.measureText(txt).width + 9;
+    }
+
+    ctx.strokeStyle = '#d8d0c4';
+    ctx.lineWidth   = 1;
+    ctx.strokeRect(PL, PT, pw, ph);
+
+    if (chartsFrozen) {
+      ctx.fillStyle = 'rgba(244,241,236,0.7)';
+      ctx.fillRect(PL, PT, pw, ph);
+      ctx.fillStyle    = '#b83232';
+      ctx.font         = `bold ${Math.max(9, fsPx + 1)}px "Share Tech Mono",monospace`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('NO SIGNAL', PL + pw / 2, PT + ph / 2);
+    }
+  }
+
+  (function rafLoop() {
+    if (chartsOpen) CHART_DEFS.forEach(_drawChart);
+    requestAnimationFrame(rafLoop);
+  })();
+
+  // ── Slider / Input sync ─────────────────────────────────────────────────────
+  const syncConfig = {
+    fwd: { slider: "fwd-slider", input: "fwd-input", val: "fwd-val", scale: 100, suffix: "",  decimals: 2 },
+    bwd: { slider: "bwd-slider", input: "bwd-input", val: "bwd-val", scale: 100, suffix: "",  decimals: 2 },
+    spn: { slider: "spn-slider", input: "spn-input", val: "spn-val", scale: 100, suffix: "",  decimals: 2 },
+    sc:  { slider: "sc-slider",  input: "sc-input",  val: "sc-val",  scale: 1,   suffix: "°", decimals: 0 },
+    sl:  { slider: "sl-slider",  input: "sl-input",  val: "sl-val",  scale: 1,   suffix: "°", decimals: 0 },
+    sr:  { slider: "sr-slider",  input: "sr-input",  val: "sr-val",  scale: 1,   suffix: "°", decimals: 0 },
+  };
+
+  function syncSlider(key) {
+    const c   = syncConfig[key];
+    const raw = parseFloat(document.getElementById(c.slider).value);
+    const val = raw / c.scale;
+    document.getElementById(c.input).value     = val.toFixed(c.decimals);
+    document.getElementById(c.val).textContent = val.toFixed(c.decimals) + c.suffix;
+  }
+
+  function syncInput(key) {
+    const c   = syncConfig[key];
+    let val   = parseFloat(document.getElementById(c.input).value);
+    const max = parseFloat(document.getElementById(c.input).max);
+    const min = parseFloat(document.getElementById(c.input).min);
+    if (isNaN(val)) return;
+    val = Math.max(min, Math.min(max, val));
+    document.getElementById(c.slider).value    = val * c.scale;
+    document.getElementById(c.val).textContent = val.toFixed(c.decimals) + c.suffix;
+  }
+
+  function getVal(key) {
+    return parseFloat(document.getElementById(syncConfig[key].input).value);
+  }
+
+  async function applySpeed() {
+    await sendRaw(CMD_URL, { action: "set_speed", forward: getVal("fwd"), backward: getVal("bwd"), spin: getVal("spn") });
+    showToast(`Speed → FWD:${getVal("fwd").toFixed(2)} BWD:${getVal("bwd").toFixed(2)} SPIN:${getVal("spn").toFixed(2)}`);
+  }
+
+  async function applyServo() {
+    await sendRaw(CMD_URL, { action: "set_servo", center: getVal("sc"), left: getVal("sl"), right: getVal("sr") });
+    showToast(`Servo → C:${getVal("sc")}° L:${getVal("sl")}° R:${getVal("sr")}°`);
+  }
+
+  // ── Drawer slider sync (separate IDs from main page sliders) ─────────────
+  const cfgSliders = {
+    'd-fwd': { slider: 'd-fwd-s', val: 'd-fwd-v', scale: 100, suffix: '',  decimals: 2 },
+    'd-bwd': { slider: 'd-bwd-s', val: 'd-bwd-v', scale: 100, suffix: '',  decimals: 2 },
+    'd-spn': { slider: 'd-spn-s', val: 'd-spn-v', scale: 100, suffix: '',  decimals: 2 },
+    'd-sc':  { slider: 'd-sc-s',  val: 'd-sc-v',  scale: 1,   suffix: '°', decimals: 0 },
+    'd-sl':  { slider: 'd-sl-s',  val: 'd-sl-v',  scale: 1,   suffix: '°', decimals: 0 },
+    'd-sr':  { slider: 'd-sr-s',  val: 'd-sr-v',  scale: 1,   suffix: '°', decimals: 0 },
+  };
+
+  function cfgSyncSlider(key) {
+    const c   = cfgSliders[key];
+    const raw = parseFloat(document.getElementById(c.slider).value);
+    const val = raw / c.scale;
+    document.getElementById(c.val).textContent = val.toFixed(c.decimals) + c.suffix;
+  }
+
+  function cfgSetSlider(key, val) {
+    const c = cfgSliders[key];
+    if (!c) return;
+    document.getElementById(c.slider).value    = val * c.scale;
+    document.getElementById(c.val).textContent = parseFloat(val).toFixed(c.decimals) + c.suffix;
+  }
+
+  function cfgGetSlider(key) {
+    const c = cfgSliders[key];
+    return parseFloat(document.getElementById(c.slider).value) / c.scale;
+  }
+
+  // ── Config drawer open/close ──────────────────────────────────────────────
+  let cfgOpen = false;
+  let cfgPollTimer = null;
+
+  function openConfig() {
+    cfgOpen = true;
+    document.getElementById('cfg-drawer').classList.add('open');
+    document.getElementById('cfg-backdrop').classList.add('open');
+    loadCfgData();
+    cfgPollTimer = setInterval(pollCfgLive, 1000);
+    fetch(NETTEST_URL, { signal: AbortSignal.timeout(3000) })
+      .then(r => r.json()).then(showNettestResult).catch(() => {});
+  }
+
+  function closeConfig() {
+    cfgOpen = false;
+    document.getElementById('cfg-drawer').classList.remove('open');
+    document.getElementById('cfg-backdrop').classList.remove('open');
+    clearInterval(cfgPollTimer);
+    cfgPollTimer = null;
+  }
+
+  function toggleCfgSection(hdr) {
+    const body = hdr.nextElementSibling;
+    const open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : '';
+    hdr.classList.toggle('collapsed', open);
+  }
+
+  async function loadCfgData() {
+    try {
+      const res = await fetch(API_CFG_URL, { signal: AbortSignal.timeout(3000) });
+      if (!res.ok) return;
+      const d = await res.json();
+
+      // Drive speeds
+      if (d.drive) {
+        cfgSetSlider('d-fwd', d.drive.forward_speed  ?? 0.40);
+        cfgSetSlider('d-bwd', d.drive.backward_speed ?? 0.40);
+        cfgSetSlider('d-spn', d.drive.spin_speed     ?? 0.25);
+        const dzEl = document.getElementById('d-dz');
+        if (dzEl) dzEl.value = (d.drive.deadzone ?? 0.12).toFixed(2);
+      }
+      // Servo
+      if (d.steering) {
+        cfgSetSlider('d-sc', d.steering.servo_center ?? 90);
+        cfgSetSlider('d-sl', d.steering.servo_left   ?? 135);
+        cfgSetSlider('d-sr', d.steering.servo_right  ?? 45);
+      }
+      // Body
+      if (d.body) {
+        const r = document.getElementById('d-radius');
+        const m = document.getElementById('d-mass');
+        const p = document.getElementById('d-pend');
+        if (r) r.value = (d.body.sphere_radius_m     ?? 0.114).toFixed(3);
+        if (m) m.value = (d.body.total_mass_kg        ?? 1.0).toFixed(3);
+        if (p) p.value = (d.body.pendulum_offset_m    ?? 0.0).toFixed(3);
+      }
+      // Logging
+      if (d.logging) {
+        const hz = document.getElementById('d-hz');
+        if (hz) hz.value = d.logging.sample_hz ?? 20;
+      }
+      // Cameras
+      if (d.cameras) {
+        d.cameras.forEach(cam => {
+          if (cam.role === 'rgb')     { const el = document.getElementById('d-cam-rgb');     if (el) el.checked = cam.enabled; }
+          if (cam.role === 'thermal') { const el = document.getElementById('d-cam-thermal'); if (el) el.checked = cam.enabled; }
+        });
+      }
+      // Sensors table
+      if (d.sensors) _renderSensorTable(d.sensors);
+    } catch {}
+  }
+
+  async function pollCfgLive() {
+    if (!cfgOpen) return;
+    try {
+      const res = await fetch(`${API_CFG_URL}?cal=1`, { signal: AbortSignal.timeout(2000) });
+      if (!res.ok) return;
+      const d = await res.json();
+      if (d.calibration) _updateCalBars(d.calibration);
+      if (d.sensors)     _renderSensorTable(d.sensors);
+    } catch {}
+  }
+
+  const _CAL_COLORS = ['#b83232','#c86a20','#b89020','#4a6a28'];
+  function _updateCalBars(cal) {
+    for (const k of ['sys','gyro','accel','mag']) {
+      const v   = cal[k] ?? 0;
+      const pct = (v / 3 * 100).toFixed(0) + '%';
+      const fill = document.getElementById(`cal-${k}`);
+      const valEl = document.getElementById(`cal-${k}-v`);
+      if (fill)  { fill.style.width = pct; fill.style.background = _CAL_COLORS[v] || _CAL_COLORS[0]; }
+      if (valEl)   valEl.textContent = `${v}/3`;
+    }
+  }
+
+  function _renderSensorTable(sensors) {
+    const tbody = document.getElementById('cfg-sensor-tbody');
+    if (!tbody) return;
+    if (!sensors.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="color:var(--dim)">no sensors detected</td></tr>';
+      return;
+    }
+    tbody.innerHTML = sensors.map(s => `
+      <tr>
+        <td>${s.name}</td>
+        <td>${s.address}</td>
+        <td>${s.fixed ? 'fixed' : 'opt'}</td>
+        <td class="${s.online ? 'online' : 'offline'}">${s.online ? 'ON' : 'OFF'}</td>
+      </tr>`).join('');
+  }
+
+  function _renderHardwareStatus(hw) {
+    // Sensors table (reuse cfg-sensor-tbl with online from _hardware.sensors)
+    _renderSensorTable(hw.sensors || []);
+
+    // Cameras
+    const camBody = document.getElementById('cfg-camera-tbody');
+    if (camBody && hw.cameras) {
+      camBody.innerHTML = hw.cameras.map(c => `
+        <tr>
+          <td>${c.role}</td>
+          <td class="${c.online ? 'online' : 'offline'}">${c.online ? 'ON' : 'OFF'}</td>
+        </tr>`).join('') || '<tr><td colspan="2" style="color:var(--dim)">no cameras</td></tr>';
+    }
+
+    // Drive
+    const driveRow = document.getElementById('cfg-drive-status');
+    if (driveRow) {
+      driveRow.textContent = hw.drive.online ? 'ONLINE' : 'OFFLINE';
+      driveRow.className   = hw.drive.online ? 'online' : 'offline';
+    }
+  }
+
+  async function cfgServoTest(action) {
+    // Temporarily command servo to test position — does NOT save
+    const angle = {
+      center: cfgGetSlider('d-sc'),
+      left:   cfgGetSlider('d-sl'),
+      right:  cfgGetSlider('d-sr'),
+      stop:   cfgGetSlider('d-sc'),
+    }[action] ?? cfgGetSlider('d-sc');
+    await sendRaw(CMD_URL, {
+      action: action === 'stop' ? 'stop' : 'set_servo',
+      servo_center: angle, servo_left: cfgGetSlider('d-sl'), servo_right: cfgGetSlider('d-sr'),
+    });
+  }
+
+  async function cfgSave() {
+    const payload = {
+      drive: {
+        forward_speed:  cfgGetSlider('d-fwd'),
+        backward_speed: cfgGetSlider('d-bwd'),
+        spin_speed:     cfgGetSlider('d-spn'),
+        deadzone:       parseFloat(document.getElementById('d-dz').value || 0.12),
+      },
+      steering: {
+        servo_center: Math.round(cfgGetSlider('d-sc')),
+        servo_left:   Math.round(cfgGetSlider('d-sl')),
+        servo_right:  Math.round(cfgGetSlider('d-sr')),
+      },
+      body: {
+        sphere_radius_m:  parseFloat(document.getElementById('d-radius').value || 0.114),
+        total_mass_kg:    parseFloat(document.getElementById('d-mass').value || 1.0),
+        pendulum_offset_m: parseFloat(document.getElementById('d-pend').value || 0.0),
+      },
+      logging: {
+        sample_hz: parseInt(document.getElementById('d-hz').value || 20),
+      },
+      cameras: [
+        { role: 'rgb',     enabled: document.getElementById('d-cam-rgb').checked },
+        { role: 'thermal', enabled: document.getElementById('d-cam-thermal').checked },
+      ],
+    };
+    try {
+      const res = await fetch(API_CFG_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(3000),
+      });
+      const d = await res.json();
+      if (res.ok && d.status === 'ok') {
+        showToast('Config saved');
+        // Sync main-page sliders from saved values
+        syncSettingsFromServer({
+          forward_speed:  payload.drive.forward_speed,
+          backward_speed: payload.drive.backward_speed,
+          spin_speed:     payload.drive.spin_speed,
+          deadzone:       payload.drive.deadzone,
+          servo_center:   payload.steering.servo_center,
+          servo_left:     payload.steering.servo_left,
+          servo_right:    payload.steering.servo_right,
+        });
+      } else {
+        showToast(`Save error: ${d.message || 'unknown'}`);
+      }
+    } catch (e) {
+      showToast('Save failed — check connection');
+    }
+  }
+
+  // ── Speed test ───────────────────────────────────────────────────────────────
+  let _nettestPollTimer = null;
+
+  async function runSpeedTest() {
+    const btn     = document.getElementById('nettest-btn');
+    const spinner = document.getElementById('nettest-spinner');
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch(NETTEST_URL, { method: 'POST', signal: AbortSignal.timeout(5000) });
+      const d   = await res.json();
+      if (!res.ok) {
+        showToast(d.message || 'Speed test failed');
+        if (btn) btn.disabled = false;
+        return;
+      }
+      if (spinner) spinner.style.display = '';
+      if (btn)    btn.style.display     = 'none';
+      document.getElementById('nettest-result').textContent = 'Running…';
+      clearInterval(_nettestPollTimer);
+      _nettestPollTimer = setInterval(pollNettestResult, 1000);
+    } catch {
+      showToast('Speed test request failed');
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function pollNettestResult() {
+    try {
+      const res = await fetch(NETTEST_URL, { signal: AbortSignal.timeout(3000) });
+      if (!res.ok) return;
+      const d = await res.json();
+      if (d.status !== 'running') {
+        clearInterval(_nettestPollTimer);
+        _nettestPollTimer = null;
+        const spinner = document.getElementById('nettest-spinner');
+        const btn     = document.getElementById('nettest-btn');
+        if (spinner) spinner.style.display = 'none';
+        if (btn)    { btn.style.display = ''; btn.disabled = false; }
+        showNettestResult(d);
+      }
+    } catch {}
+  }
+
+  function showNettestResult(d) {
+    const el = document.getElementById('nettest-result');
+    if (!el) return;
+    if (!d || d.status === 'idle' || d.status === 'unavailable') {
+      el.textContent = 'No test run yet.';
+      return;
+    }
+    if (d.status === 'running') {
+      el.textContent = 'Running…';
+      return;
+    }
+    if (d.status === 'error') {
+      el.textContent = `Error: ${d.error || 'unknown'}`;
+      return;
+    }
+    const dl  = d.download_mbps != null ? d.download_mbps + ' Mbps' : '—';
+    const ul  = d.upload_mbps   != null ? d.upload_mbps   + ' Mbps' : '—';
+    const lat = d.latency_ms    != null ? d.latency_ms    + ' ms'   : '—';
+    const when = d.tested_at_ms != null
+      ? new Date(d.tested_at_ms).toLocaleTimeString() : '';
+    const trig = d.trigger ? ` (${d.trigger})` : '';
+    el.innerHTML =
+      `<span style="color:var(--hi)">↓ ${dl}</span>` +
+      `&nbsp;&nbsp;<span style="color:var(--hi)">↑ ${ul}</span>` +
+      `&nbsp;&nbsp;${lat}` +
+      (when ? `<br><span style="font-size:0.75em;color:var(--dim)">${when}${trig}</span>` : '');
+  }
+
+  // ── Joystick ─────────────────────────────────────────────────────────────────
+  let DEADZONE = 0.12;
+  const joyZone  = document.getElementById("joy-zone");
+  const joyKnob  = document.getElementById("joy-knob");
+  const spinInd  = document.getElementById("spin-ind");
+
+  let joyActive = false;
+  let joyOrigin = { x: 0, y: 0 };
+  let joyPos    = { x: 0, y: 0 };
+  let sendTimer = null;
+
+  function getMaxRadius() {
+    return joyZone.offsetWidth / 2 - joyKnob.offsetWidth / 2;
+  }
+
+  function startJoy(cx, cy) {
+    const rect = joyZone.getBoundingClientRect();
+    joyOrigin  = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    joyActive  = true;
+    joyZone.classList.add("active");
+    moveJoy(cx, cy);
+    if (!sendTimer) sendTimer = setInterval(sendJoystick, 80);
+  }
+
+  function moveJoy(cx, cy) {
+    if (!joyActive) return;
+    const maxR = getMaxRadius();
+    let dx = cx - joyOrigin.x;
+    let dy = cy - joyOrigin.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > maxR) { dx = dx / dist * maxR; dy = dy / dist * maxR; }
+
+    joyPos.x = parseFloat((dx / maxR).toFixed(2));
+    joyPos.y = parseFloat((-dy / maxR).toFixed(2));
+
+    joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    document.getElementById("joy-x-val").textContent = joyPos.x.toFixed(2);
+    document.getElementById("joy-y-val").textContent = joyPos.y.toFixed(2);
+
+    const isSpin = Math.abs(joyPos.x) > DEADZONE && Math.abs(joyPos.y) < DEADZONE;
+    spinInd.classList.toggle("active", isSpin);
+  }
+
+  function stopJoy() {
+    joyActive = false;
+    joyPos    = { x: 0, y: 0 };
+    joyZone.classList.remove("active");
+    joyKnob.style.transform = "translate(-50%, -50%)";
+    document.getElementById("joy-x-val").textContent = "0.00";
+    document.getElementById("joy-y-val").textContent = "0.00";
+    spinInd.classList.remove("active");
+    clearInterval(sendTimer);
+    sendTimer = null;
+    sendJoystick();
+  }
+
+  joyZone.addEventListener("touchstart",  e => { e.preventDefault(); startJoy(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+  joyZone.addEventListener("touchmove",   e => { e.preventDefault(); moveJoy(e.touches[0].clientX,  e.touches[0].clientY); }, { passive: false });
+  joyZone.addEventListener("touchend",    e => { e.preventDefault(); stopJoy(); });
+  joyZone.addEventListener("touchcancel", e => { e.preventDefault(); stopJoy(); });
+
+  joyZone.addEventListener("mousedown", e => startJoy(e.clientX, e.clientY));
+  document.addEventListener("mousemove", e => { if (joyActive) moveJoy(e.clientX, e.clientY); });
+  document.addEventListener("mouseup",   () => { if (joyActive) stopJoy(); });
+  document.addEventListener("contextmenu", e => e.preventDefault());
+
+  const keyMap  = { ArrowUp: [0, 1], ArrowDown: [0, -1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+  const keyHeld = {};
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") { if (cfgOpen) { closeConfig(); return; } }
+    const v = keyMap[e.key];
+    if (v && !keyHeld[e.key]) {
+      keyHeld[e.key] = true;
+      joyPos.x = v[0]; joyPos.y = v[1];
+      document.getElementById("joy-x-val").textContent = joyPos.x.toFixed(2);
+      document.getElementById("joy-y-val").textContent = joyPos.y.toFixed(2);
+      if (!sendTimer) sendTimer = setInterval(sendJoystick, 80);
+      sendJoystick();
+      e.preventDefault();
+    }
+    if (e.key === " ") { stopJoy(); e.preventDefault(); }
+  });
+  document.addEventListener("keyup", e => {
+    if (keyMap[e.key]) { keyHeld[e.key] = false; stopJoy(); }
+  });
+
+  // ── Network ───────────────────────────────────────────────────────────────────
+  // Only one joystick POST in flight at a time — overlapping sends (80 ms
+  // cadence vs slow links) pile up requests and make latency worse.
+  let joySending = false;
+  async function sendJoystick() {
+    if (joySending) return;
+    joySending = true;
+    try {
+      const res = await fetch(JOY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ x: joyPos.x, y: joyPos.y }),
+        // Longer than the watchdog TIMEOUT_MS so a slow-but-arriving command is
+        // counted as a heartbeat rather than aborted as a "connection error".
+        signal: AbortSignal.timeout(1500),
+      });
+      noteRequest(res.ok);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.settings) syncSettingsFromServer(data.settings);
+      }
+    } catch { noteRequest(false); }
+    finally { joySending = false; }
+  }
+
+  async function sendRaw(url, payload) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(2000),
+      });
+      noteRequest(res.ok);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.settings) syncSettingsFromServer(data.settings);
+      }
+    } catch { noteRequest(false); }
+  }
+
+  function syncSettingsFromServer(s) {
+    if (s.deadzone !== undefined) DEADZONE = parseFloat(s.deadzone);
+    const map = [
+      ["fwd", s.forward_speed],
+      ["bwd", s.backward_speed],
+      ["spn", s.spin_speed],
+      ["sc",  s.servo_center],
+      ["sl",  s.servo_left],
+      ["sr",  s.servo_right],
+    ];
+    map.forEach(([key, val]) => {
+      if (val === undefined) return;
+      const c = syncConfig[key];
+      document.getElementById(c.input).value     = parseFloat(val).toFixed(c.decimals);
+      document.getElementById(c.slider).value    = val * c.scale;
+      document.getElementById(c.val).textContent = parseFloat(val).toFixed(c.decimals) + c.suffix;
+    });
+  }
+
+  // ── Connection indicator — debounced so a lone request timeout doesn't
+  // flicker CONNECTED ↔ CONN ERROR on a jittery duct link.  Only flips to
+  // error after 3 consecutive failures (≈600 ms of dead polls at 5 Hz).
+  let connFailStreak = 0;
+  function noteRequest(ok) {
+    connFailStreak = ok ? 0 : connFailStreak + 1;
+    setConnected(connFailStreak < 3);
+  }
+
+  function setConnected(ok) {
+    document.getElementById("status-dot").className    = "dot " + (ok ? "connected" : "error");
+    document.getElementById("status-text").textContent = ok ? "CONNECTED" : "CONN ERROR";
+  }
+
+  // ── Sensor polling — 5 Hz, feeds tiles AND chart buffers ─────────────────────
+  async function fetchSensors() {
+    try {
+      const res = await fetch(SENSORS_URL, { signal: AbortSignal.timeout(800) });
+      if (!res.ok) { noteRequest(false); _pushGap(); return; }
+      const d = await res.json();
+
+      document.getElementById("s-pitch").textContent   = d.pitch   != null ? (+d.pitch).toFixed(1)   : '—';
+      document.getElementById("s-roll").textContent    = d.roll    != null ? (+d.roll).toFixed(1)    : '—';
+      document.getElementById("s-heading").textContent = d.heading != null ? (+d.heading).toFixed(1) : '—';
+      document.getElementById("s-temp").textContent    = d.bme_temp != null ? (+d.bme_temp).toFixed(1) : '—';
+      document.getElementById("s-hum").textContent     = d.bme_hum  != null ? (+d.bme_hum).toFixed(1)  : '—';
+      document.getElementById("s-pi-temp").textContent = d.pi_temp  != null ? (+d.pi_temp).toFixed(1)  : '—';
+      document.getElementById("tile-pi-temp").className = "sensor-tile" + (d.pi_temp > 80 ? " warn" : "");
+      // ── NETWORK tile ────────────────────────────────────────────────────
+      const netType  = d.net_type  || 'none';
+      const netDbm   = d.wifi_dbm  != null ? d.wifi_dbm  : null;
+      const netName  = d.net_name  || null;
+      const netIp    = d.ip_address || null;
+      const netLat   = d.latency_ms != null ? d.latency_ms : null;
+      const netQual  = d.wifi_quality != null ? d.wifi_quality : null;
+      const netLink  = d.link_speed_mbps != null ? d.link_speed_mbps : null;
+      const wifiVal  = document.getElementById('s-wifi');
+      const wifiUnit = document.getElementById('s-wifi-unit');
+
+      if (netType === 'wifi') {
+        wifiVal.textContent  = netDbm != null ? netDbm : '—';
+        wifiUnit.textContent = 'dBm';
+        document.getElementById('tile-wifi').className =
+          'sensor-tile net-tile' + (netDbm != null && netDbm < -70 ? ' warn' : '');
+      } else if (netType === 'ethernet') {
+        wifiVal.textContent  = netLat != null ? netLat : '—';
+        wifiUnit.textContent = netLat != null ? 'ms' : '';
+        document.getElementById('tile-wifi').className = 'sensor-tile net-tile';
+      } else {
+        wifiVal.textContent  = '—';
+        wifiUnit.textContent = '';
+        document.getElementById('tile-wifi').className = 'sensor-tile net-tile warn';
+      }
+
+      // Rebuild tooltip rows (omit lines with null values)
+      (function() {
+        const tt = document.getElementById('net-tooltip');
+        tt.innerHTML = '';
+        function addRow(key, val) {
+          if (val == null) return;
+          const row = document.createElement('div');
+          row.className = 'net-tt-row';
+          row.innerHTML =
+            `<span class="net-tt-key">${key}</span>` +
+            `<span class="net-tt-val">${val}</span>`;
+          tt.appendChild(row);
+        }
+        addRow('Type', netType === 'wifi' ? 'WiFi' : netType === 'ethernet' ? 'Ethernet' : 'None');
+        addRow('Name', netName);
+        addRow('IP',   netIp);
+        if (netType === 'wifi') {
+          const sigStr = netDbm != null
+            ? netDbm + ' dBm' + (netQual != null ? ` (${netQual}%)` : '')
+            : null;
+          addRow('Signal', sigStr);
+        }
+        addRow('Link',    netLink != null ? netLink + ' Mbps' : null);
+        addRow('Latency', netLat  != null ? netLat  + ' ms'   : null);
+      })();
+
+      // Keep config drawer network bar current
+      document.getElementById('cfg-ip').textContent       = netIp   || '—';
+      document.getElementById('cfg-net-type').textContent =
+        netType === 'wifi' ? 'WiFi' : netType === 'ethernet' ? 'Ethernet' : 'None';
+      document.getElementById('cfg-net-name').textContent = netName || '—';
+      const online = d.internet === 1;
+      document.getElementById("s-internet").textContent  = online ? "ON" : "OFF";
+      document.getElementById("tile-internet").className = "sensor-tile" + (online ? "" : " warn");
+      document.getElementById("tile-pitch").className  = "sensor-tile" + (Math.abs(d.pitch) > 30 ? " warn" : "");
+      document.getElementById("tile-roll").className   = "sensor-tile" + (Math.abs(d.roll)  > 30 ? " warn" : "");
+
+      // Drive offline banner
+      const hw = d._hardware;
+      const driveOnline = hw ? hw.drive.online : true;
+      document.getElementById('drive-offline-banner').hidden = driveOnline;
+
+      // Hardware status in config drawer
+      if (hw) _renderHardwareStatus(hw);
+
+      _pushSensorData(d);
+      noteRequest(true);
+    } catch {
+      _pushGap();
+      noteRequest(false);
+    }
+  }
+  setInterval(fetchSensors, 200);   // 5 Hz
+  fetchSensors();
+
+  // ── Toast ─────────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2500);
+  }
+
+  // ── Recording ─────────────────────────────────────────────────────────────────
+  let isRecording = false;
+
+  async function toggleRecord() {
+    const action = isRecording ? "stop" : "start";
+    try {
+      const res = await fetch(RECORD_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+        signal: AbortSignal.timeout(2000),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      isRecording = data.recording;
+      updateRecBtn(data.filename);
+      showToast(isRecording ? `REC → ${data.filename}` : "REC STOPPED");
+    } catch { showToast("REC ERROR"); }
+  }
+
+  function updateRecBtn(filename) {
+    const btn = document.getElementById("rec-btn");
+    const lbl = document.getElementById("rec-filename");
+    if (isRecording) {
+      btn.textContent = "■ STOP REC";
+      btn.classList.add("recording");
+      lbl.textContent = filename || "";
+      lbl.classList.add("show");
+    } else {
+      btn.textContent = "● START REC";
+      btn.classList.remove("recording");
+      lbl.textContent = "";
+      lbl.classList.remove("show");
+    }
+    document.getElementById("chart-panel").classList.toggle("recording", isRecording);
+  }
+
+  // ── Network tooltip toggle ────────────────────────────────────────────────────
+  // Called by onclick="toggleNetTooltip(event)" on the NETWORK tile.
+  // Tap toggles; tapping elsewhere (document click) dismisses.
+  function toggleNetTooltip(e) {
+    e.stopPropagation();
+    document.getElementById('tile-wifi').classList.toggle('tt-open');
+  }
+  document.addEventListener('click', function() {
+    document.getElementById('tile-wifi').classList.remove('tt-open');
+  });
+
+  // ── Load settings + recording state on startup ────────────────────────────────
+  (async () => {
+    try {
+      const cr = await fetch(API_CFG_URL, { signal: AbortSignal.timeout(3000) });
+      if (cr.ok) {
+        const cd = await cr.json();
+        const lbl = document.getElementById("robot-id-label");
+        if (lbl && cd.robot) lbl.textContent = (cd.robot.id || "").toUpperCase();
+      }
+    } catch {}
+    try {
+      const res = await fetch(SETTINGS_URL, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        const d = await res.json();
+        syncSettingsFromServer(d.settings || d);
+        noteRequest(true);
+      }
+    } catch { noteRequest(false); }
+    try {
+      const res = await fetch(RECORD_URL, { signal: AbortSignal.timeout(2000) });
+      if (res.ok) { const d = await res.json(); isRecording = d.recording; updateRecBtn(d.filename); }
+    } catch {}
+  })();
+</script>
+</body>
+</html>

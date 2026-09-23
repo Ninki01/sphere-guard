@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>SphereGuard Config</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg:       #f4f1ec;
+    --panel:    #ffffff;
+    --border:   #ddd8ce;
+    --accent:   #5a6e30;
+    --accent2:  #8b7350;
+    --danger:   #b83232;
+    --ok:       #4a6a28;
+    --dim:      #c0b8ac;
+    --text:     #2e2a22;
+    --glow:     0 0 0 2px #5a6e3030, 0 0 12px #5a6e3020;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Orbitron', monospace;
+    color: var(--text);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px;
+    gap: 12px;
+    overflow-y: auto;
+  }
+
+  header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo { font-size: clamp(14px, 3.5vw, 20px); font-weight: 900; letter-spacing: 0.15em; color: var(--accent); text-shadow: var(--glow); }
+  .logo span { color: var(--accent2); }
+  .logo .robot-id { font-size: 0.55em; color: var(--dim); display: block; letter-spacing: 0.1em; margin-top: 1px; }
+  .nav-toggle { display: flex; gap: 4px; }
+  .nav-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(8px, 1.8vw, 10px);
+    padding: 4px 10px; border-radius: 4px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--dim);
+    letter-spacing: 0.06em; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s, color 0.2s;
+  }
+  .nav-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .panel {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .panel-title {
+    font-size: clamp(9px, 2.2vw, 11px);
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+    margin-bottom: 2px;
+  }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .field-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(8px, 1.8vw, 10px);
+    color: var(--dim);
+    min-width: 120px;
+    letter-spacing: 0.06em;
+  }
+  .field-input {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(11px, 2.5vw, 13px);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 4px 8px;
+    color: var(--text);
+    width: 100px;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .field-unit {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+  }
+
+  /* Cal bars */
+  .cal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .cal-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .cal-label { font-family: 'Share Tech Mono', monospace; font-size: 8px; color: var(--dim); letter-spacing: 0.1em; }
+  .cal-bar { width: 100%; height: 12px; border-radius: 3px; border: 1px solid var(--border); background: var(--bg); position: relative; overflow: hidden; }
+  .cal-fill { height: 100%; border-radius: 2px; transition: width 0.5s, background 0.5s; }
+  .cal-val { font-family: 'Share Tech Mono', monospace; font-size: 11px; font-weight: 700; }
+  .cal-note { font-family: 'Share Tech Mono', monospace; font-size: 8px; color: var(--dim); font-style: italic; }
+
+  /* Sensor table */
+  .sensor-table { width: 100%; border-collapse: collapse; font-family: 'Share Tech Mono', monospace; font-size: clamp(8px, 1.8vw, 10px); }
+  .sensor-table th { color: var(--dim); text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--border); letter-spacing: 0.06em; }
+  .sensor-table td { padding: 4px 6px; border-bottom: 1px solid #f0ece4; }
+  .badge { border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 700; letter-spacing: 0.05em; }
+  .badge-fixed { background: #e8f0d8; color: var(--accent); }
+  .badge-swap  { background: #f0e8d8; color: var(--accent2); }
+  .badge-ok    { background: #d8ecd8; color: var(--ok); }
+  .badge-miss  { background: #f0d8d8; color: var(--danger); }
+
+  /* Test buttons */
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(9px, 2vw, 11px);
+    padding: 8px 14px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    letter-spacing: 0.06em; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+  }
+  .btn:active { background: var(--border); }
+  .btn.accent { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+  .save-status {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(9px, 2vw, 11px);
+    color: var(--dim);
+    min-height: 18px;
+  }
+  .save-status.ok  { color: var(--ok); }
+  .save-status.err { color: var(--danger); }
+
+  .restart-note {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px;
+    color: var(--accent2);
+    font-style: italic;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">SPHERE<span>GUARD</span><span class="robot-id" id="robot-id-label"></span></div>
+  <div class="nav-toggle">
+    <button class="nav-btn" onclick="location.href='/'">DRIVE</button>
+    <button class="nav-btn active" onclick="void 0">CONFIG</button>
+  </div>
+</header>
+
+<!-- IMU Calibration -->
+<div class="panel">
+  <div class="panel-title">IMU CALIBRATION — BNO055</div>
+  <div class="cal-grid">
+    <div class="cal-cell">
+      <div class="cal-label">SYS</div>
+      <div class="cal-bar"><div class="cal-fill" id="cal-sys-fill"></div></div>
+      <div class="cal-val" id="cal-sys-val">—</div>
+    </div>
+    <div class="cal-cell">
+      <div class="cal-label">GYRO</div>
+      <div class="cal-bar"><div class="cal-fill" id="cal-gyro-fill"></div></div>
+      <div class="cal-val" id="cal-gyro-val">—</div>
+    </div>
+    <div class="cal-cell">
+      <div class="cal-label">ACCEL</div>
+      <div class="cal-bar"><div class="cal-fill" id="cal-accel-fill"></div></div>
+      <div class="cal-val" id="cal-accel-val">—</div>
+    </div>
+    <div class="cal-cell">
+      <div class="cal-label">MAG</div>
+      <div class="cal-bar"><div class="cal-fill" id="cal-mag-fill"></div></div>
+      <div class="cal-val" id="cal-mag-val">—</div>
+    </div>
+  </div>
+  <div class="cal-note">IMUPLUS mode — magnetometer not required (metal duct). Target: SYS=3, GYRO=3, ACCEL=3.</div>
+  <div class="cal-note">To calibrate gyro: leave the robot stationary for a few seconds. To calibrate accel: place on several flat surfaces.</div>
+</div>
+
+<!-- Detected Sensors -->
+<div class="panel">
+  <div class="panel-title">DETECTED SENSORS</div>
+  <table class="sensor-table">
+    <thead>
+      <tr><th>NAME</th><th>ADDR</th><th>TYPE</th><th>STATUS</th></tr>
+    </thead>
+    <tbody id="sensor-tbody"></tbody>
+  </table>
+</div>
+
+<!-- Drive Settings -->
+<div class="panel">
+  <div class="panel-title">DRIVE SETTINGS</div>
+  <div class="field-row">
+    <span class="field-label">FORWARD SPEED</span>
+    <input class="field-input" type="number" id="fwd-speed" min="0.01" max="1" step="0.01"/>
+    <span class="field-unit">0–1</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">BACKWARD SPEED</span>
+    <input class="field-input" type="number" id="bwd-speed" min="0.01" max="1" step="0.01"/>
+    <span class="field-unit">0–1</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">SPIN SPEED</span>
+    <input class="field-input" type="number" id="spn-speed" min="0.01" max="1" step="0.01"/>
+    <span class="field-unit">0–1</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">DEADZONE</span>
+    <input class="field-input" type="number" id="deadzone" min="0" max="0.99" step="0.01"/>
+    <span class="field-unit">0–1</span>
+  </div>
+</div>
+
+<!-- Servo Settings -->
+<div class="panel">
+  <div class="panel-title">STEERING SERVO</div>
+  <div class="field-row">
+    <span class="field-label">CENTER</span>
+    <input class="field-input" type="number" id="srv-center" min="0" max="180" step="1"/>
+    <span class="field-unit">°</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">LEFT</span>
+    <input class="field-input" type="number" id="srv-left" min="0" max="180" step="1"/>
+    <span class="field-unit">°</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">RIGHT</span>
+    <input class="field-input" type="number" id="srv-right" min="0" max="180" step="1"/>
+    <span class="field-unit">°</span>
+  </div>
+  <div class="btn-row">
+    <button class="btn" onclick="testServo('center')">CENTRE</button>
+    <button class="btn" onclick="testServo('left')">LEFT</button>
+    <button class="btn" onclick="testServo('right')">RIGHT</button>
+    <button class="btn danger" onclick="testServo('stop')">STOP DRIVE</button>
+  </div>
+</div>
+
+<!-- Body Physical -->
+<div class="panel">
+  <div class="panel-title">BODY PHYSICAL</div>
+  <div class="field-row">
+    <span class="field-label">SPHERE RADIUS</span>
+    <input class="field-input" type="number" id="body-radius" min="0.001" step="0.001"/>
+    <span class="field-unit">m</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">TOTAL MASS</span>
+    <input class="field-input" type="number" id="body-mass" min="0.001" step="0.001"/>
+    <span class="field-unit">kg</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">PENDULUM OFFSET</span>
+    <input class="field-input" type="number" id="body-pendulum" min="0" step="0.001"/>
+    <span class="field-unit">m (0 = unknown)</span>
+  </div>
+</div>
+
+<!-- Cameras -->
+<div class="panel">
+  <div class="panel-title">CAMERAS</div>
+  <div id="camera-list"></div>
+  <div class="restart-note">Camera enabled/disabled changes require a server restart.</div>
+</div>
+
+<!-- Save -->
+<div class="panel">
+  <div class="panel-title">SAVE CONFIGURATION</div>
+  <div class="btn-row">
+    <button class="btn accent" onclick="saveConfig()">SAVE</button>
+  </div>
+  <div class="save-status" id="save-status"></div>
+  <div class="restart-note" id="restart-note" style="display:none"></div>
+</div>
+
+<script>
+  const PI_HOST = window.location.hostname || "raspberrypi.local";
+  const PI_PORT = window.location.port     || "5000";
+  const BASE    = `http://${PI_HOST}:${PI_PORT}`;
+
+  // ── Cal bar colours ──────────────────────────────────────────────────────────
+  const CAL_COLORS = ["#e8d8d8", "#f0d890", "#d8e890", "#68b040"];
+  function updateCalBar(prefix, val) {
+    const fill = document.getElementById(`cal-${prefix}-fill`);
+    const lbl  = document.getElementById(`cal-${prefix}-val`);
+    if (fill) { fill.style.width = `${val * 33.33}%`; fill.style.background = CAL_COLORS[val] || CAL_COLORS[0]; }
+    if (lbl)  lbl.textContent = val;
+  }
+
+  async function fetchCal() {
+    try {
+      const r = await fetch(`${BASE}/api/config?cal=1`, { signal: AbortSignal.timeout(2000) });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.calibration) {
+        const c = d.calibration;
+        updateCalBar("sys", c.sys || 0);
+        updateCalBar("gyro", c.gyro || 0);
+        updateCalBar("accel", c.accel || 0);
+        updateCalBar("mag", c.mag || 0);
+      }
+    } catch {}
+  }
+  setInterval(fetchCal, 1000);
+
+  // ── Load config ──────────────────────────────────────────────────────────────
+  let _camCfg = [];
+
+  async function loadConfig() {
+    try {
+      const r = await fetch(`${BASE}/api/config`, { signal: AbortSignal.timeout(3000) });
+      if (!r.ok) return;
+      const d = await r.json();
+
+      // Robot label
+      const lbl = document.getElementById("robot-id-label");
+      if (lbl && d.robot) lbl.textContent = (d.robot.id || "").toUpperCase();
+
+      // Drive
+      if (d.drive) {
+        document.getElementById("fwd-speed").value  = d.drive.forward_speed  || "";
+        document.getElementById("bwd-speed").value  = d.drive.backward_speed || "";
+        document.getElementById("spn-speed").value  = d.drive.spin_speed     || "";
+        document.getElementById("deadzone").value   = d.drive.deadzone       || "";
+      }
+
+      // Steering
+      if (d.steering) {
+        document.getElementById("srv-center").value = d.steering.servo_center || "";
+        document.getElementById("srv-left").value   = d.steering.servo_left   || "";
+        document.getElementById("srv-right").value  = d.steering.servo_right  || "";
+      }
+
+      // Body
+      if (d.body) {
+        document.getElementById("body-radius").value   = d.body.sphere_radius_m    || "";
+        document.getElementById("body-mass").value     = d.body.total_mass_kg      || "";
+        document.getElementById("body-pendulum").value = d.body.pendulum_offset_m  || "";
+      }
+
+      // Sensors table
+      const tbody = document.getElementById("sensor-tbody");
+      if (tbody && d.sensors) {
+        tbody.innerHTML = d.sensors.map(s => `
+          <tr>
+            <td>${s.name}</td>
+            <td>${s.address}</td>
+            <td><span class="badge ${s.fixed ? 'badge-fixed' : 'badge-swap'}">${s.fixed ? 'FIXED' : 'SWAP'}</span></td>
+            <td><span class="badge ${s.online ? 'badge-ok' : 'badge-miss'}">${s.online ? 'ONLINE' : 'OFFLINE'}</span></td>
+          </tr>`).join("");
+      }
+
+      // Cameras
+      _camCfg = d.cameras || [];
+      const camList = document.getElementById("camera-list");
+      if (camList) {
+        camList.innerHTML = _camCfg.map((c, i) => `
+          <div class="field-row" style="margin-bottom:6px">
+            <span class="field-label">${(c.role || "cam" + i).toUpperCase()} (dev ${c.device})</span>
+            <label style="display:flex;align-items:center;gap:6px;font-family:Share Tech Mono,monospace;font-size:10px">
+              <input type="checkbox" id="cam-en-${i}" ${c.enabled ? "checked" : ""}/>
+              ENABLED
+            </label>
+          </div>`).join("");
+      }
+
+    } catch(e) {
+      console.error("loadConfig failed:", e);
+    }
+  }
+
+  loadConfig();
+
+  // ── Save config ──────────────────────────────────────────────────────────────
+  async function saveConfig() {
+    const cams = _camCfg.map((c, i) => ({
+      ...c,
+      enabled: document.getElementById(`cam-en-${i}`)?.checked ?? c.enabled
+    }));
+
+    const payload = {
+      drive: {
+        forward_speed:  parseFloat(document.getElementById("fwd-speed").value),
+        backward_speed: parseFloat(document.getElementById("bwd-speed").value),
+        spin_speed:     parseFloat(document.getElementById("spn-speed").value),
+        deadzone:       parseFloat(document.getElementById("deadzone").value),
+      },
+      steering: {
+        servo_center: parseInt(document.getElementById("srv-center").value),
+        servo_left:   parseInt(document.getElementById("srv-left").value),
+        servo_right:  parseInt(document.getElementById("srv-right").value),
+      },
+      body: {
+        sphere_radius_m:   parseFloat(document.getElementById("body-radius").value),
+        total_mass_kg:     parseFloat(document.getElementById("body-mass").value),
+        pendulum_offset_m: parseFloat(document.getElementById("body-pendulum").value),
+      },
+      cameras: cams,
+    };
+
+    const st = document.getElementById("save-status");
+    st.textContent = "Saving…";
+    st.className   = "save-status";
+
+    try {
+      const r = await fetch(`${BASE}/api/config`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(5000),
+      });
+      const d = await r.json();
+      if (d.status === "ok") {
+        st.textContent = "Saved.";
+        st.className   = "save-status ok";
+        const note = document.getElementById("restart-note");
+        if (d.restart_required && d.restart_required.length > 0) {
+          note.textContent = `Restart required for: ${d.restart_required.join(", ")}`;
+          note.style.display = "";
+        } else {
+          note.style.display = "none";
+        }
+      } else {
+        st.textContent = "Error: " + (d.message || "unknown");
+        st.className   = "save-status err";
+      }
+    } catch(e) {
+      st.textContent = "Save failed: " + e.message;
+      st.className   = "save-status err";
+    }
+  }
+
+  // ── Servo test buttons ───────────────────────────────────────────────────────
+  async function testServo(action) {
+    try {
+      await fetch(`${BASE}/command`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ action }),
+        signal: AbortSignal.timeout(2000),
+      });
+    } catch {}
+  }
+</script>
+</body>
+</html>

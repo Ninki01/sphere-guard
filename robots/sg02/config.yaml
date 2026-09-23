@@ -1,0 +1,66 @@
+robot:
+  id: "sg02"
+  name: "SphereGuard SG02"
+  description: "Ball robot — second unit (in build)"
+
+server:
+  port: 5000
+  host: "0.0.0.0"
+
+drive:
+  drive_channel: 0
+  steering_channel: 1
+  forward_speed: 0.40   # UNTUNED placeholder — measure against actual robot
+  backward_speed: 0.40  # UNTUNED placeholder
+  spin_speed: 0.25      # UNTUNED placeholder
+  deadzone: 0.12
+
+steering:
+  servo_center: 90   # UNTUNED placeholder — calibrate with servo test buttons
+  servo_left: 135    # UNTUNED placeholder
+  servo_right: 45    # UNTUNED placeholder
+
+body:
+  sphere_radius_m: 0.11385  # UNTUNED placeholder — measure when shell is fitted
+  total_mass_kg: 1.0        # UNTUNED placeholder — measure fully assembled
+  pendulum_offset_m: 0.0    # TODO: measure pendulum CoM offset from sphere centre
+
+ina226:
+  shunt_ohms: 0.005
+  address: 0x41
+
+imu:
+  mode: "IMUPLUS"
+
+voc:
+  port: /dev/ttyS0
+  baud: 9600
+
+cameras:
+  - role: rgb
+    device: 0
+    width: 640
+    height: 480
+    fps: 30
+    enabled: true
+  - role: thermal
+    device: 2
+    width: 256
+    height: 384
+    fps: 25
+    enabled: false
+
+logging:
+  sample_hz: 20
+  env_every_n: 40
+  flush_every: 20
+
+paths:
+  data_dir: "data/sensor_log"  # relative to this config file (= sg02/data/sensor_log)
+
+fusion:
+  homography: null
+  calibration_date: null
+  calibration_distance_m: null
+  blend_alpha: 0.4
+  colormap: "INFERNO"

@@ -1,0 +1,66 @@
+robot:
+  id: "sg01"
+  name: "SphereGuard SG01"
+  description: "Ball robot — 9-inch basketball shell"
+
+server:
+  port: 5000
+  host: "0.0.0.0"
+
+drive:
+  drive_channel: 0       # PCA9685 ch0 — SPT5535LV continuous servo
+  steering_channel: 1    # PCA9685 ch1 — PTK7465WMG weight-shift servo
+  forward_speed: 0.40
+  backward_speed: 0.40
+  spin_speed: 0.25
+  deadzone: 0.12
+
+steering:
+  servo_center: 90
+  servo_left: 135
+  servo_right: 45
+
+body:
+  sphere_radius_m: 0.11385  # 227.7 mm diameter (9-inch shell), measured
+  total_mass_kg: 4.338      # measured
+  pendulum_offset_m: 0.0    # TODO: measure pendulum CoM offset from sphere centre; 0.0 = unknown
+
+ina226:
+  shunt_ohms: 0.005
+  address: 0x41  # A0 pin bridged; note 0x40 is PCA9685 — do not use
+
+imu:
+  mode: "IMUPLUS"  # no magnetometer — robot runs inside metal duct
+
+voc:
+  port: /dev/ttyAMA0
+  baud: 9600
+
+cameras:
+  - role: rgb
+    device: 0
+    width: 640
+    height: 480
+    fps: 30
+    enabled: true
+  - role: thermal
+    device: 2
+    width: 256
+    height: 384
+    fps: 25
+    enabled: true
+
+logging:
+  sample_hz: 20
+  env_every_n: 40   # slow sensors (BME280, SHT45, SCD41, …) sampled every 40 ticks = 2 s at 20 Hz
+  flush_every: 20
+
+paths:
+  data_dir: "data/sensor_log"  # relative to this config file (= sg01/data/sensor_log)
+
+fusion:
+  homography: null            # 9-element row-major flat list after calibration
+  calibration_date: null      # ISO-8601 timestamp set by calibrate_fusion.py
+  calibration_distance_m: null
+  blend_alpha: 0.4            # 0 = RGB only, 1 = thermal only
+  colormap: "INFERNO"

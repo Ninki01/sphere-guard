@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Fusion View — SphereGuard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg:      #f4f1ec;
+    --panel:   #ffffff;
+    --border:  #ddd8ce;
+    --accent:  #5a6e30;
+    --accent2: #8b7350;
+    --danger:  #b83232;
+    --ok:      #4a6a28;
+    --dim:     #c0b8ac;
+    --text:    #2e2a22;
+    --warn:    #c88020;
+    --glow:    0 0 0 2px #5a6e3030, 0 0 12px #5a6e3020;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Orbitron', monospace;
+    color: var(--text);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px;
+    gap: 12px;
+    overflow-y: auto;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── Header ── */
+  header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo { font-size: clamp(14px, 3.5vw, 20px); font-weight: 900; letter-spacing: 0.15em; color: var(--accent); }
+  .logo span { color: var(--accent2); }
+  .logo .robot-id { font-size: 0.55em; color: var(--dim); display: block; letter-spacing: 0.1em; margin-top: 1px; }
+
+  .exp-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(8px, 1.8vw, 11px);
+    letter-spacing: 0.1em;
+    color: var(--warn);
+    border: 1px solid var(--warn);
+    border-radius: 4px;
+    padding: 3px 10px;
+  }
+
+  .back-link {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(9px, 2vw, 11px);
+    color: var(--dim);
+    text-decoration: none;
+    letter-spacing: 0.08em;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .back-link:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ── Status panel ── */
+  .status-panel {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(9px, 2vw, 11px);
+  }
+  .cal-badge {
+    padding: 3px 10px; border-radius: 4px; letter-spacing: 0.08em;
+    font-size: clamp(8px, 1.8vw, 10px);
+  }
+  .cal-badge.ok      { background: #e8f4e0; color: var(--ok);   border: 1px solid #b0d090; }
+  .cal-badge.missing { background: #fce8e8; color: var(--danger); border: 1px solid #e8b0b0; }
+  .status-dim { color: var(--dim); }
+  .status-val { color: var(--text); }
+
+  /* ── Stream panel ── */
+  .stream-panel {
+    width: 100%;
+    background: #050810;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .fusion-feed {
+    width: 100%;
+    max-width: 800px;
+    display: block;
+    aspect-ratio: 4/3;
+    object-fit: contain;
+  }
+  .stream-status {
+    position: absolute;
+    bottom: 10px; left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(8px, 1.8vw, 10px);
+    color: #88cc66;
+    letter-spacing: 0.08em;
+    background: rgba(0,0,0,0.5);
+    padding: 2px 10px;
+    border-radius: 10px;
+    pointer-events: none;
+  }
+  .stream-status.error { color: #e88; }
+
+  /* ── Controls panel ── */
+  .controls-panel {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .ctrl-title {
+    font-size: 10px; letter-spacing: 0.15em; color: var(--accent);
+    border-bottom: 1px solid var(--border); padding-bottom: 8px;
+  }
+  .ctrl-field { display: flex; flex-direction: column; gap: 6px; }
+  .ctrl-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px; color: #4a7a9a; letter-spacing: 0.08em;
+    display: flex; justify-content: space-between;
+  }
+  .ctrl-label span { color: var(--accent); font-size: 11px; }
+
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px; background: var(--dim); border-radius: 2px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 6px var(--accent); cursor: pointer;
+  }
+
+  select.ctrl-select {
+    width: 100%;
+    background: #f8f6f2; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; padding: 6px 8px;
+    outline: none; cursor: pointer;
+    -webkit-appearance: none; appearance: none;
+  }
+  select.ctrl-select:focus { border-color: var(--accent); }
+
+  /* ── Experimental warning ── */
+  .exp-warning {
+    width: 100%;
+    background: #fef8ed;
+    border: 1px solid #e8c870;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(8px, 1.8vw, 10px);
+    color: #8a6820;
+    line-height: 1.7;
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #0d2030; border: 1px solid var(--accent);
+    color: var(--accent); font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; padding: 8px 18px; border-radius: 20px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s; white-space: nowrap; z-index: 9999;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">SPHERE<span>GUARD</span><span class="robot-id" id="robot-id-label"></span></div>
+  <span class="exp-badge">EXPERIMENTAL</span>
+  <a class="back-link" href="/">← DRIVE</a>
+</header>
+
+<!-- Calibration status -->
+<div class="status-panel">
+  <div id="cal-badge" class="cal-badge missing">UNCALIBRATED</div>
+  <span class="status-dim">DATE:</span>
+  <span class="status-val" id="cal-date">—</span>
+  <span class="status-dim">DIST:</span>
+  <span class="status-val" id="cal-dist">—</span>
+</div>
+
+<!-- Fusion stream -->
+<div class="stream-panel">
+  <img class="fusion-feed" id="fusion-feed" alt="fusion stream"
+       onload="onStreamLoad()" onerror="onStreamError()">
+  <span class="stream-status" id="stream-status">CONNECTING...</span>
+</div>
+
+<!-- Controls -->
+<div class="controls-panel">
+  <div class="ctrl-title">⊕ BLEND CONTROLS</div>
+
+  <div class="ctrl-field">
+    <div class="ctrl-label">
+      THERMAL BLEND ALPHA (0 = RGB only, 1 = thermal only)
+      <span id="alpha-val">0.40</span>
+    </div>
+    <input type="range" id="alpha-slider" min="0" max="100" value="40"
+           oninput="onAlphaChange()">
+  </div>
+
+  <div class="ctrl-field">
+    <div class="ctrl-label">COLORMAP</div>
+    <select class="ctrl-select" id="colormap-select" onchange="onColormapChange()">
+      <option value="INFERNO">INFERNO (default)</option>
+      <option value="JET">JET</option>
+      <option value="HOT">HOT</option>
+      <option value="MAGMA">MAGMA</option>
+      <option value="TURBO">TURBO</option>
+      <option value="BONE">BONE</option>
+    </select>
+  </div>
+</div>
+
+<!-- Experimental notes -->
+<div class="exp-warning">
+  ⚠ EXPERIMENTAL — FUSION VIEW ONLY<br>
+  This view is never recorded. The dashboard can reproduce it offline from the two
+  source videos and the stored homography.<br><br>
+  Alignment is a fixed homography calibrated at a specific distance. Parallax from
+  camera separation causes misalignment at other distances. Run
+  <b>calibrate_fusion.py</b> at your target operating distance and record the
+  calibration distance in config.yaml so this is traceable.
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const PI_HOST     = window.location.hostname || "raspberrypi.local";
+  const PI_PORT     = window.location.port     || "5000";
+  const BASE        = `http://${PI_HOST}:${PI_PORT}`;
+  const STREAM_URL  = `${BASE}/stream/fusion`;
+  const API_URL     = `${BASE}/api/fusion`;
+  const API_CFG_URL = `${BASE}/api/config`;
+
+  // ── Stream ────────────────────────────────────────────────────────────────
+  const feed   = document.getElementById("fusion-feed");
+  const stText = document.getElementById("stream-status");
+  let retryTimer = null;
+
+  function onStreamLoad() {
+    stText.textContent = "LIVE";
+    stText.classList.remove("error");
+    clearTimeout(retryTimer);
+  }
+
+  function onStreamError() {
+    stText.textContent = "NO SIGNAL — retrying...";
+    stText.classList.add("error");
+    feed.removeAttribute("src");
+    retryTimer = setTimeout(() => { feed.src = STREAM_URL; }, 3000);
+  }
+
+  feed.src = STREAM_URL;
+
+  // ── Alpha slider ──────────────────────────────────────────────────────────
+  let alphaSaveTimer = null;
+
+  function onAlphaChange() {
+    const raw = parseFloat(document.getElementById("alpha-slider").value);
+    const alpha = (raw / 100).toFixed(2);
+    document.getElementById("alpha-val").textContent = alpha;
+    clearTimeout(alphaSaveTimer);
+    alphaSaveTimer = setTimeout(() => postFusion({ blend_alpha: parseFloat(alpha) }), 300);
+  }
+
+  // ── Colormap dropdown ─────────────────────────────────────────────────────
+  function onColormapChange() {
+    const cm = document.getElementById("colormap-select").value;
+    postFusion({ colormap: cm });
+  }
+
+  // ── API calls ─────────────────────────────────────────────────────────────
+  async function postFusion(payload) {
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(2000),
+      });
+      if (!res.ok) showToast("Save failed");
+    } catch {
+      showToast("Connection error");
+    }
+  }
+
+  async function loadFusionState() {
+    try {
+      const res = await fetch(API_URL, { signal: AbortSignal.timeout(3000) });
+      if (!res.ok) return;
+      const d = await res.json();
+
+      // Calibration badge
+      const badge  = document.getElementById("cal-badge");
+      const hasCal = Array.isArray(d.homography) && d.homography.length === 9;
+      badge.textContent = hasCal ? "CALIBRATED" : "UNCALIBRATED";
+      badge.className   = "cal-badge " + (hasCal ? "ok" : "missing");
+
+      document.getElementById("cal-date").textContent =
+        d.calibration_date ?? "—";
+      document.getElementById("cal-dist").textContent =
+        d.calibration_distance_m != null ? `${d.calibration_distance_m} m` : "—";
+
+      // Blend alpha
+      if (d.blend_alpha != null) {
+        const pct = Math.round(parseFloat(d.blend_alpha) * 100);
+        document.getElementById("alpha-slider").value = pct;
+        document.getElementById("alpha-val").textContent = d.blend_alpha.toFixed(2);
+      }
+
+      // Colormap
+      if (d.colormap) {
+        const sel = document.getElementById("colormap-select");
+        for (const opt of sel.options) {
+          if (opt.value === d.colormap.toUpperCase()) { sel.value = opt.value; break; }
+        }
+      }
+    } catch {}
+  }
+
+  async function loadRobotId() {
+    try {
+      const res = await fetch(API_CFG_URL, { signal: AbortSignal.timeout(3000) });
+      if (!res.ok) return;
+      const d = await res.json();
+      const lbl = document.getElementById("robot-id-label");
+      if (lbl && d.robot) lbl.textContent = (d.robot.id || "").toUpperCase();
+    } catch {}
+  }
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2500);
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  loadFusionState();
+  loadRobotId();
+</script>
+</body>
+</html>

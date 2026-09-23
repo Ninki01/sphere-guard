@@ -1,0 +1,67 @@
+(base) sg02@raspberrypi:~ $ libcamera-hello --list-cameras
+bash: libcamera-hello: command not found
+(base) sg02@raspberrypi:~ $ libcamera-hello --list-cameras
+bash: libcamera-hello: command not found
+(base) sg02@raspberrypi:~ $ cat /boot/firmware/config.txt | tail -20
+# Run as fast as firmware / board allows
+arm_boost=1
+
+[cm4]
+# Enable host mode on the 2711 built-in XHCI USB controller.
+# This line should be removed if the legacy DWC2 controller is required
+# (e.g. for USB device mode) or if USB support is not required.
+otg_mode=1
+
+[cm5]
+dtoverlay=dwc2,dr_mode=host
+
+[all]
+dtparam=uart0=on
+
+enable_uart=1
+dtoverlay=uart0
+
+dtoverlay=imx219
+
+(base) sg02@raspberrypi:~ $ dmesg | grep -iE "imx|csi|camera|ov5647"
+[    0.029066] /axi/pcie@1000120000/rp1/i2c@80000/imx219@10: Fixed dependency cycle(s) with /axi/pcie@1000120000/rp1/csi@128000
+[    0.029091] /axi/pcie@1000120000/rp1/csi@128000: Fixed dependency cycle(s) with /axi/pcie@1000120000/rp1/i2c@80000/imx219@10
+[    0.029214] /axi/pcie@1000120000/rp1/i2c@80000/imx219@10: Fixed dependency cycle(s) with /axi/pcie@1000120000/rp1/csi@128000
+[    0.029240] /axi/pcie@1000120000/rp1/csi@128000: Fixed dependency cycle(s) with /axi/pcie@1000120000/rp1/i2c@80000/imx219@10
+[    0.035324] SCSI subsystem initialized
+[    0.247756] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 247)
+[    0.283922] Loading iSCSI transport class v2.0-870.
+[    0.420455] /axi/pcie@1000120000/rp1/i2c@80000/imx219@10: Fixed dependency cycle(s) with /axi/pcie@1000120000/rp1/csi@128000
+[    0.420781] /axi/pcie@1000120000/rp1/i2c@80000/imx219@10: Fixed dependency cycle(s) with /axi/pcie@1000120000/rp1/csi@128000
+[    0.420798] /axi/pcie@1000120000/rp1/csi@128000: Fixed dependency cycle(s) with /axi/pcie@1000120000/rp1/i2c@80000/imx219@10
+[    0.691839] /axi/pcie@1000120000/rp1/csi@128000: Fixed dependency cycle(s) with /axi/pcie@1000120000/rp1/i2c@80000/imx219@10
+[    0.691872] /axi/pcie@1000120000/rp1/i2c@80000/imx219@10: Fixed dependency cycle(s) with /axi/pcie@1000120000/rp1/csi@128000
+[    4.175602] rp1-cfe 1f00128000.csi: bcm2712_iommu_of_xlate: MMU 1000005280.iommu
+[    4.175610] rp1-cfe 1f00128000.csi: bcm2712_iommu_probe_device: MMU 1000005280.iommu
+[    4.175615] rp1-cfe 1f00128000.csi: bcm2712_iommu_device_group: MMU 1000005280.iommu
+[    4.175619] rp1-cfe 1f00128000.csi: Adding to iommu group 2
+[    4.175623] rp1-cfe 1f00128000.csi: bcm2712_iommu_attach_dev: MMU 1000005280.iommu
+[    4.176007] rp1-cfe 1f00128000.csi: DW dphy Host HW v1.20
+[    4.176022] rp1-cfe 1f00128000.csi: PiSP FE HW v0.1
+[    4.176124] rp1-cfe 1f00128000.csi: found subdevice /axi/pcie@1000120000/rp1/i2c@80000/imx219@10
+[    4.275677] imx219 11-0010: Error reading reg 0x0000: -121
+[    4.275687] imx219 11-0010: error -EREMOTEIO: failed to read chip id 219
+[    4.275893] imx219 11-0010: probe with driver imx219 failed with error -121
+(base) sg02@raspberrypi:~ $ ls /dev/video* /dev/media* 2>/dev/null || echo "No video/media devices found"
+/dev/media0  /dev/media2  /dev/video19  /dev/video21  /dev/video23  /dev/video25  /dev/video27  /dev/video29  /dev/video31  /dev/video33  /dev/video35
+/dev/media1  /dev/media3  /dev/video20  /dev/video22  /dev/video24  /dev/video26  /dev/video28  /dev/video30  /dev/video32  /dev/video34
+(base) sg02@raspberrypi:~ $ sudo i2cdetect -y 10
+Error: Could not open file `/dev/i2c-10' or `/dev/i2c/10': No such file or directory
+(base) sg02@raspberrypi:~ $ sudo i2cdetect -y 11
+     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+00:                         -- -- -- -- -- -- -- -- 
+10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+60: -- -- -- -- 64 -- -- -- -- -- -- -- -- -- -- -- 
+70: -- -- -- -- -- -- -- --                         
+(base) sg02@raspberrypi:~ $ libcamera-hello --list-cameras 2>&1
+bash: libcamera-hello: command not found
+(base) sg02@raspberrypi:~ $ 

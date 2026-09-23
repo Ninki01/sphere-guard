@@ -1,0 +1,4 @@
+# SG02 dependencies — delegates to the shared requirements file.
+# Run from robots/sg02/:
+#   pip install -r requirements.txt
+-r ../requirements.txt

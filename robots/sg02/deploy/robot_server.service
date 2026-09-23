@@ -1,0 +1,16 @@
+[Unit]
+Description=SphereGuard SG02 Robot Server
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/sphere-guard/robots
+ExecStart=/usr/bin/python3 -m shared.run --config sg02/config.yaml
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

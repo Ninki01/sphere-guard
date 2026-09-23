@@ -1,0 +1,17 @@
+[Unit]
+Description=SphereGuard SG01 Robot Server
+# Start even with no internet — server only needs the LAN
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/sphere-guard/robots
+ExecStart=/usr/bin/python3 -m shared.run --config sg01/config.yaml
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

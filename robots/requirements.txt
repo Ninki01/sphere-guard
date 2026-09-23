@@ -1,0 +1,26 @@
+# SphereGuard — shared robot server dependencies
+# Install from the robots/ directory:
+#   pip install -r requirements.txt
+
+# config / environment
+python-dotenv>=1.0.0
+pyyaml>=6.0
+
+# raw I2C (INA226, SDP810 CRC, I2C scan)
+smbus2>=0.4.0
+
+# Adafruit hardware stack (PCA9685 servo HAT, BNO055, BME280, SHT4x, SCD4x)
+Adafruit-Blinka==8.42.0
+adafruit-circuitpython-pca9685==3.4.16
+adafruit-circuitpython-servokit>=1.0.0
+adafruit-circuitpython-bno055>=3.3.0
+adafruit-circuitpython-bme280==2.6.24
+adafruit-circuitpython-sht4x>=1.0.0
+adafruit-circuitpython-scd4x==1.4.11
+adafruit-circuitpython-busdevice>=5.1.0
+
+# camera / video recording
+opencv-python>=4.5.0
+
+# serial (VOC PS1 sensor)
+pyserial>=3.0.0

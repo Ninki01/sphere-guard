@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Robot Controller</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg:       #0a0c10;
+    --panel:    #10141c;
+    --border:   #1e2a3a;
+    --accent:   #00e5ff;
+    --accent2:  #ff6b00;
+    --danger:   #ff2d55;
+    --ok:       #39ff14;
+    --purple:   #a855f7;
+    --dim:      #2a3545;
+    --text:     #c8ddef;
+    --glow:     0 0 12px #00e5ff88, 0 0 30px #00e5ff33;
+    --glow-red: 0 0 12px #ff2d5588, 0 0 30px #ff2d5533;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Orbitron', monospace;
+    color: var(--text);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px;
+    gap: 12px;
+    overflow-y: auto;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* ── Header ── */
+  header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo { font-size: clamp(14px, 3.5vw, 20px); font-weight: 900; letter-spacing: 0.15em; color: var(--accent); text-shadow: var(--glow); }
+  .logo span { color: var(--accent2); }
+  .status-bar { display: flex; align-items: center; gap: 8px; font-family: 'Share Tech Mono', monospace; font-size: clamp(10px, 2.2vw, 12px); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dim); transition: background 0.3s, box-shadow 0.3s; }
+  .dot.connected { background: var(--ok);    box-shadow: 0 0 8px var(--ok); }
+  .dot.error     { background: var(--danger); box-shadow: var(--glow-red); }
+
+  /* ── State display ── */
+  .state-display { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .current-action {
+    font-size: clamp(16px, 4.5vw, 30px); font-weight: 900; letter-spacing: 0.2em;
+    color: var(--accent); text-shadow: var(--glow); min-height: 1.3em; transition: all 0.2s;
+  }
+  .current-action.stopped { color: var(--danger); text-shadow: var(--glow-red); }
+  .sub-info { font-family: 'Share Tech Mono', monospace; font-size: clamp(8px, 1.8vw, 11px); color: #4a6a8a; letter-spacing: 0.08em; text-align: center; }
+
+  /* ── Robot viz ── */
+  .robot-viz { width: clamp(80px, 22vw, 120px); height: clamp(80px, 22vw, 120px); }
+  .robot-viz svg { width: 100%; height: 100%; }
+
+  /* ── D-pad ── */
+  .dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: clamp(7px, 2vw, 12px);
+    width: clamp(220px, 65vw, 320px);
+    aspect-ratio: 1;
+  }
+
+  .btn {
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--text);
+    font-family: 'Orbitron', monospace;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    transition: transform 0.08s, box-shadow 0.1s, border-color 0.1s, background 0.1s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    position: relative; overflow: hidden;
+  }
+  .btn .icon  { font-size: clamp(20px, 5.5vw, 32px); line-height: 1; }
+  .btn .label { font-size: clamp(6px, 1.6vw, 9px); opacity: 0.6; letter-spacing: 0.1em; }
+
+  .btn:active, .btn.held { transform: scale(0.91); background: #141c28; }
+  .btn.fwd:active,  .btn.fwd.held  { border-color: var(--accent);  box-shadow: var(--glow); }
+  .btn.back:active, .btn.back.held { border-color: var(--accent2); box-shadow: 0 0 12px #ff6b0088; }
+  .btn.left:active, .btn.left.held,
+  .btn.right:active,.btn.right.held { border-color: var(--purple); box-shadow: 0 0 12px #a855f755; }
+  .btn.stop:active, .btn.stop.held  { border-color: var(--danger); box-shadow: var(--glow-red); }
+
+  .btn.stop { background: #1a0c10; border-color: #3a1520; color: var(--danger); }
+  .btn.fwd  { border-color: #1a3040; grid-column: 2; grid-row: 1; }
+  .btn.left { grid-column: 1; grid-row: 2; }
+  .btn.stop { grid-column: 2; grid-row: 2; }
+  .btn.right{ grid-column: 3; grid-row: 2; }
+  .btn.back { border-color: #2a1800; grid-column: 2; grid-row: 3; }
+
+  .ripple {
+    position: absolute; border-radius: 50%; transform: scale(0);
+    animation: ripple-anim 0.5s linear; background: rgba(0,229,255,0.18); pointer-events: none;
+  }
+  @keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+
+  /* ── Settings panels ── */
+  .settings-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .panel-title {
+    font-size: clamp(8px, 2vw, 11px);
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+    margin-bottom: 2px;
+  }
+  .panel-title.purple { color: var(--purple); }
+  .panel-title.orange { color: var(--accent2); }
+
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(7px, 1.6vw, 10px);
+    color: #4a7a9a;
+    letter-spacing: 0.08em;
+  }
+
+  .input-row { display: flex; gap: 6px; align-items: center; }
+
+  input[type="number"] {
+    background: #0d1520;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(11px, 2.5vw, 14px);
+    padding: 6px 8px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  input[type="number"]:focus { border-color: var(--accent); }
+
+  /* slider */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--dim);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+    cursor: pointer;
+  }
+  input[type="range"].purple::-webkit-slider-thumb { background: var(--purple); box-shadow: 0 0 6px var(--purple); }
+  input[type="range"].orange::-webkit-slider-thumb { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+
+  .range-val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: clamp(10px, 2.2vw, 13px);
+    color: var(--accent);
+    min-width: 38px;
+    text-align: right;
+  }
+  .range-val.purple { color: var(--purple); }
+  .range-val.orange { color: var(--accent2); }
+
+  .apply-btn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    color: var(--accent);
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(7px, 1.8vw, 10px);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 7px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s, box-shadow 0.15s;
+    width: 100%;
+  }
+  .apply-btn:active { background: #001a20; box-shadow: var(--glow); }
+  .apply-btn.purple { border-color: var(--purple); color: var(--purple); }
+  .apply-btn.purple:active { background: #1a0030; box-shadow: 0 0 12px #a855f788; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #0d2030; border: 1px solid var(--accent);
+    color: var(--accent); font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; padding: 8px 18px; border-radius: 20px;
+    box-shadow: var(--glow); opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+    z-index: 9999;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ── Sensor strip ── */
+  .sensor-strip {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .sensor-tile {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 60px;
+    flex: 1;
+  }
+  .sensor-tile .s-label { font-family: 'Share Tech Mono', monospace; font-size: 8px; opacity: 0.5; letter-spacing: 0.1em; }
+  .sensor-tile .s-value { font-size: clamp(13px, 3.2vw, 18px); font-weight: 700; color: var(--accent); font-family: 'Share Tech Mono', monospace; }
+  .sensor-tile .s-unit  { font-family: 'Share Tech Mono', monospace; font-size: 8px; opacity: 0.4; }
+  .sensor-tile.warn .s-value { color: var(--accent2); }
+
+  /* scan-line */
+  body::after {
+    content: ''; position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+    pointer-events: none; z-index: 9998;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">ROBO<span>CTRL</span></div>
+  <div class="status-bar">
+    <div class="dot" id="status-dot"></div>
+    <span id="status-text">OFFLINE</span>
+  </div>
+</header>
+
+<!-- State display -->
+<div class="state-display">
+  <div class="robot-viz">
+    <svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="ballGrad" cx="40%" cy="35%">
+          <stop offset="0%"   stop-color="#1e3050"/>
+          <stop offset="100%" stop-color="#0a0c10"/>
+        </radialGradient>
+        <filter id="glow-f">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <ellipse cx="80" cy="148" rx="38" ry="7" fill="#00000055"/>
+      <circle cx="80" cy="80" r="58" fill="url(#ballGrad)" stroke="#1e3a55" stroke-width="1.5"/>
+      <circle cx="80" cy="80" r="58" fill="none" stroke="#00e5ff" stroke-width="0.8" opacity="0.25"/>
+      <g id="robot-body" filter="url(#glow-f)">
+        <rect id="weight-bar" x="55" y="75" width="50" height="10" rx="5" fill="#00e5ff" opacity="0.7"/>
+        <circle cx="80" cy="80" r="5" fill="#00e5ff" opacity="0.9"/>
+        <path id="dir-arrow" d="M80,52 L88,68 L80,64 L72,68 Z" fill="#00e5ff" opacity="0.8"/>
+      </g>
+    </svg>
+  </div>
+  <div class="current-action stopped" id="action-label">STOPPED</div>
+  <div class="sub-info" id="sub-label">WEIGHT: 90° · THROTTLE: 0.0</div>
+</div>
+
+<!-- Sensor strip -->
+<div class="sensor-strip">
+  <div class="sensor-tile" id="tile-pitch">
+    <span class="s-label">PITCH</span>
+    <span class="s-value" id="s-pitch">—</span>
+    <span class="s-unit">°</span>
+  </div>
+  <div class="sensor-tile" id="tile-roll">
+    <span class="s-label">ROLL</span>
+    <span class="s-value" id="s-roll">—</span>
+    <span class="s-unit">°</span>
+  </div>
+  <div class="sensor-tile">
+    <span class="s-label">HEADING</span>
+    <span class="s-value" id="s-heading">—</span>
+    <span class="s-unit">°</span>
+  </div>
+  <div class="sensor-tile">
+    <span class="s-label">TEMP</span>
+    <span class="s-value" id="s-temp">—</span>
+    <span class="s-unit">°C</span>
+  </div>
+  <div class="sensor-tile">
+    <span class="s-label">HUM</span>
+    <span class="s-value" id="s-hum">—</span>
+    <span class="s-unit">%</span>
+  </div>
+</div>
+
+<!-- D-pad -->
+<div class="dpad">
+  <button class="btn fwd"  data-action="forward"
+    ontouchstart="press(event,this)" ontouchend="release(event,this)" ontouchcancel="release(event,this)"
+    oncontextmenu="return false"
+    onmousedown="press(event,this)" onmouseup="release(event,this)" onmouseleave="release(event,this)">
+    <span class="icon">▲</span><span class="label">FORWARD</span>
+  </button>
+  <button class="btn left" data-action="left"
+    ontouchstart="press(event,this)" ontouchend="release(event,this)" ontouchcancel="release(event,this)"
+    oncontextmenu="return false"
+    onmousedown="press(event,this)" onmouseup="release(event,this)" onmouseleave="release(event,this)">
+    <span class="icon">◀</span><span class="label">LEFT</span>
+  </button>
+  <button class="btn stop" data-action="stop"
+    ontouchstart="press(event,this)" ontouchend="release(event,this)" ontouchcancel="release(event,this)"
+    oncontextmenu="return false"
+    onmousedown="press(event,this)" onmouseup="release(event,this)" onmouseleave="release(event,this)">
+    <span class="icon">■</span><span class="label">STOP</span>
+  </button>
+  <button class="btn right" data-action="right"
+    ontouchstart="press(event,this)" ontouchend="release(event,this)" ontouchcancel="release(event,this)"
+    oncontextmenu="return false"
+    onmousedown="press(event,this)" onmouseup="release(event,this)" onmouseleave="release(event,this)">
+    <span class="icon">▶</span><span class="label">RIGHT</span>
+  </button>
+  <button class="btn back" data-action="backward"
+    ontouchstart="press(event,this)" ontouchend="release(event,this)" ontouchcancel="release(event,this)"
+    oncontextmenu="return false"
+    onmousedown="press(event,this)" onmouseup="release(event,this)" onmouseleave="release(event,this)">
+    <span class="icon">▼</span><span class="label">BACK</span>
+  </button>
+</div>
+
+<!-- Settings panels -->
+<div class="settings-grid">
+
+  <!-- Motor Speed Panel -->
+  <div class="panel">
+    <div class="panel-title">⚡ MOTOR SPEED</div>
+
+    <div class="field">
+      <label>FORWARD (0.0 – 1.0)</label>
+      <div class="input-row">
+        <input type="range" id="fwd-slider" min="0" max="100" value="40"
+               oninput="syncSlider('fwd')">
+        <span class="range-val" id="fwd-val">0.40</span>
+      </div>
+      <input type="number" id="fwd-input" min="0" max="1" step="0.01" value="0.40"
+             oninput="syncInput('fwd')">
+    </div>
+
+    <div class="field">
+      <label>BACKWARD (0.0 – 1.0)</label>
+      <div class="input-row">
+        <input type="range" id="bwd-slider" min="0" max="100" value="40" class="orange"
+               oninput="syncSlider('bwd')">
+        <span class="range-val orange" id="bwd-val">0.40</span>
+      </div>
+      <input type="number" id="bwd-input" min="0" max="1" step="0.01" value="0.40"
+             oninput="syncInput('bwd')">
+    </div>
+
+    <button class="apply-btn" onclick="applySpeed()">APPLY SPEED</button>
+  </div>
+
+  <!-- Weight Servo Panel -->
+  <div class="panel">
+    <div class="panel-title purple">⚖ WEIGHT SERVO</div>
+
+    <div class="field">
+      <label>CENTER ANGLE (°)</label>
+      <div class="input-row">
+        <input type="range" id="sc-slider" min="0" max="180" value="90" class="purple"
+               oninput="syncSlider('sc')">
+        <span class="range-val purple" id="sc-val">90°</span>
+      </div>
+      <input type="number" id="sc-input" min="0" max="180" step="1" value="90"
+             oninput="syncInput('sc')">
+    </div>
+
+    <div class="field">
+      <label>LEFT LEAN (°)</label>
+      <div class="input-row">
+        <input type="range" id="sl-slider" min="0" max="180" value="135" class="purple"
+               oninput="syncSlider('sl')">
+        <span class="range-val purple" id="sl-val">135°</span>
+      </div>
+      <input type="number" id="sl-input" min="0" max="180" step="1" value="135"
+             oninput="syncInput('sl')">
+    </div>
+
+    <div class="field">
+      <label>RIGHT LEAN (°)</label>
+      <div class="input-row">
+        <input type="range" id="sr-slider" min="0" max="180" value="45" class="purple"
+               oninput="syncSlider('sr')">
+        <span class="range-val purple" id="sr-val">45°</span>
+      </div>
+      <input type="number" id="sr-input" min="0" max="180" step="1" value="45"
+             oninput="syncInput('sr')">
+    </div>
+
+    <button class="apply-btn purple" onclick="applyServo()">APPLY SERVO</button>
+  </div>
+
+</div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
+<script>
+  const PI_HOST = window.location.hostname || "raspberrypi.local";
+  const PI_PORT = window.location.port || "5000";
+  const API     = `http://${PI_HOST}:${PI_PORT}/command`;
+  const SETTINGS_URL = `http://${PI_HOST}:${PI_PORT}/settings`;
+
+  let currentAction = "stop";
+  let holdTimer     = null;
+  let sending       = false;
+
+  // ── Slider / Input sync ───────────────────────────────────────────────────
+  const syncConfig = {
+    fwd: { slider: "fwd-slider", input: "fwd-input", val: "fwd-val", scale: 100, suffix: "",   decimals: 2 },
+    bwd: { slider: "bwd-slider", input: "bwd-input", val: "bwd-val", scale: 100, suffix: "",   decimals: 2 },
+    sc:  { slider: "sc-slider",  input: "sc-input",  val: "sc-val",  scale: 1,   suffix: "°",  decimals: 0 },
+    sl:  { slider: "sl-slider",  input: "sl-input",  val: "sl-val",  scale: 1,   suffix: "°",  decimals: 0 },
+    sr:  { slider: "sr-slider",  input: "sr-input",  val: "sr-val",  scale: 1,   suffix: "°",  decimals: 0 },
+  };
+
+  function syncSlider(key) {
+    const c   = syncConfig[key];
+    const raw = parseFloat(document.getElementById(c.slider).value);
+    const val = raw / c.scale;
+    document.getElementById(c.input).value = val.toFixed(c.decimals);
+    document.getElementById(c.val).textContent = val.toFixed(c.decimals) + c.suffix;
+  }
+
+  function syncInput(key) {
+    const c   = syncConfig[key];
+    let val   = parseFloat(document.getElementById(c.input).value);
+    const max = parseFloat(document.getElementById(c.input).max);
+    const min = parseFloat(document.getElementById(c.input).min);
+    if (isNaN(val)) return;
+    val = Math.max(min, Math.min(max, val));
+    document.getElementById(c.slider).value = val * c.scale;
+    document.getElementById(c.val).textContent = val.toFixed(c.decimals) + c.suffix;
+  }
+
+  function getVal(key) {
+    return parseFloat(document.getElementById(syncConfig[key].input).value);
+  }
+
+  // ── Apply buttons ─────────────────────────────────────────────────────────
+  async function applySpeed() {
+    const fwd = getVal("fwd");
+    const bwd = getVal("bwd");
+    await sendRaw({ action: "set_speed", forward: fwd, backward: bwd });
+    showToast(`Speed → FWD: ${fwd.toFixed(2)}  BWD: ${bwd.toFixed(2)}`);
+  }
+
+  async function applyServo() {
+    const center = getVal("sc");
+    const left   = getVal("sl");
+    const right  = getVal("sr");
+    await sendRaw({ action: "set_servo", center, left, right });
+    showToast(`Servo → C:${center}°  L:${left}°  R:${right}°`);
+  }
+
+  // ── Drive commands ────────────────────────────────────────────────────────
+  async function sendCommand(action) {
+    if (sending && action === currentAction) return;
+    currentAction = action;
+    sending = true;
+    updateUI(action);
+    await sendRaw({ action });
+    sending = false;
+  }
+
+  async function sendRaw(payload) {
+    try {
+      const res = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(2000),
+      });
+      setConnected(res.ok);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.settings) syncSettingsFromServer(data.settings);
+      }
+    } catch {
+      setConnected(false);
+    }
+  }
+
+  function syncSettingsFromServer(s) {
+    // Update sliders/inputs from server response
+    const map = [
+      ["fwd", s.forward_speed],
+      ["bwd", s.backward_speed],
+      ["sc",  s.servo_center],
+      ["sl",  s.servo_left],
+      ["sr",  s.servo_right],
+    ];
+    map.forEach(([key, serverVal]) => {
+      const c = syncConfig[key];
+      document.getElementById(c.input).value  = parseFloat(serverVal).toFixed(c.decimals);
+      document.getElementById(c.slider).value = serverVal * c.scale;
+      document.getElementById(c.val).textContent = parseFloat(serverVal).toFixed(c.decimals) + c.suffix;
+    });
+  }
+
+  // ── Button press / release ────────────────────────────────────────────────
+  function press(e, btn) {
+    e.preventDefault();
+    const action = btn.dataset.action;
+    btn.classList.add("held");
+    addRipple(btn);
+    sendCommand(action);
+    clearInterval(holdTimer);
+    holdTimer = setInterval(() => sendCommand(action), 300);
+  }
+
+  function release(e, btn) {
+    e.preventDefault();
+    btn.classList.remove("held");
+    clearInterval(holdTimer);
+    holdTimer = null;
+    if (btn.dataset.action !== "stop") sendCommand("stop");
+  }
+
+  document.addEventListener("contextmenu", e => e.preventDefault());
+
+  // ── UI helpers ────────────────────────────────────────────────────────────
+  const actionMeta = {
+    forward:  { label: "FORWARD",    weightAngle:  0, arrowRot:   0 },
+    backward: { label: "BACKWARD",   weightAngle:  0, arrowRot: 180 },
+    left:     { label: "TURN LEFT",  weightAngle: 45, arrowRot: -90 },
+    right:    { label: "TURN RIGHT", weightAngle:-45, arrowRot:  90 },
+    stop:     { label: "STOPPED",    weightAngle:  0, arrowRot:   0 },
+  };
+
+  function updateUI(action) {
+    const meta  = actionMeta[action] || actionMeta.stop;
+    const fwd   = getVal("fwd").toFixed(2);
+    const bwd   = getVal("bwd").toFixed(2);
+    const label = document.getElementById("action-label");
+    label.textContent = meta.label;
+    label.className   = "current-action" + (action === "stop" ? " stopped" : "");
+
+    let sub = "";
+    if (action === "forward")  sub = `WEIGHT: ${getVal("sc")}°  ·  THROTTLE: +${fwd}`;
+    else if (action === "backward") sub = `WEIGHT: ${getVal("sc")}°  ·  THROTTLE: -${bwd}`;
+    else if (action === "left")  sub = `WEIGHT: ${getVal("sl")}°  ·  THROTTLE: +${fwd}`;
+    else if (action === "right") sub = `WEIGHT: ${getVal("sr")}°  ·  THROTTLE: +${fwd}`;
+    else sub = `WEIGHT: ${getVal("sc")}°  ·  THROTTLE: 0.0`;
+    document.getElementById("sub-label").textContent = sub;
+
+    document.getElementById("weight-bar").setAttribute("transform", `rotate(${meta.weightAngle}, 80, 80)`);
+    document.getElementById("dir-arrow").setAttribute("transform",  `rotate(${meta.arrowRot}, 80, 80)`);
+  }
+
+  function setConnected(ok) {
+    document.getElementById("status-dot").className    = "dot " + (ok ? "connected" : "error");
+    document.getElementById("status-text").textContent = ok ? "CONNECTED" : "CONN ERROR";
+  }
+
+  function addRipple(btn) {
+    const r = document.createElement("span");
+    r.className = "ripple";
+    const size  = Math.max(btn.offsetWidth, btn.offsetHeight);
+    r.style.cssText = `width:${size}px;height:${size}px;left:${btn.offsetWidth/2-size/2}px;top:${btn.offsetHeight/2-size/2}px`;
+    btn.appendChild(r);
+    r.addEventListener("animationend", () => r.remove());
+  }
+
+  let toastTimer;
+  function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2500);
+  }
+
+  // ── Keyboard support ──────────────────────────────────────────────────────
+  const keyMap  = { ArrowUp:"forward", ArrowDown:"backward", ArrowLeft:"left", ArrowRight:"right", " ":"stop" };
+  const keyHeld = {};
+  document.addEventListener("keydown", e => {
+    const a = keyMap[e.key];
+    if (a && !keyHeld[e.key]) { keyHeld[e.key] = true; sendCommand(a); }
+    if (a) e.preventDefault();
+  });
+  document.addEventListener("keyup", e => {
+    const a = keyMap[e.key];
+    if (a) { keyHeld[e.key] = false; if (a !== "stop") sendCommand("stop"); }
+  });
+
+  // ── Sensor polling ────────────────────────────────────────────────────────
+  const SENSORS_URL = `http://${PI_HOST}:${PI_PORT}/sensors`;
+
+  async function fetchSensors() {
+    try {
+      const res = await fetch(SENSORS_URL, { signal: AbortSignal.timeout(2000) });
+      if (!res.ok) return;
+      const d = await res.json();
+      document.getElementById("s-pitch").textContent   = d.pitch;
+      document.getElementById("s-roll").textContent    = d.roll;
+      document.getElementById("s-heading").textContent = d.heading;
+      document.getElementById("s-temp").textContent    = d.temp;
+      document.getElementById("s-hum").textContent     = d.humidity;
+      document.getElementById("tile-pitch").className = "sensor-tile" + (Math.abs(d.pitch) > 30 ? " warn" : "");
+      document.getElementById("tile-roll").className  = "sensor-tile" + (Math.abs(d.roll)  > 30 ? " warn" : "");
+    } catch {}
+  }
+  setInterval(fetchSensors, 2000);
+  fetchSensors();
+
+  // ── Load settings from server on startup ──────────────────────────────────
+  (async () => {
+    try {
+      const res = await fetch(SETTINGS_URL, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        const s = await res.json();
+        syncSettingsFromServer(s);
+        setConnected(true);
+      }
+    } catch { setConnected(false); }
+  })();
+</script>
+</body>
+</html>

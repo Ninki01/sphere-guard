@@ -1,0 +1,18 @@
+[Unit]
+Description=SphereGuard SG02 Firebase Uploader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/sphere-guard/robots
+EnvironmentFile=/etc/sphereguard/uploader.env
+ExecStart=/usr/bin/python3 -m shared.uploader --config sg02/config.yaml
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

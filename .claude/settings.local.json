@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm list *)",
+      "Bash(npm install *)",
+      "Bash(mkdir -p archive/root_shared)",
+      "Bash(git mv *)",
+      "Bash(mkdir -p archive/root_shared/types)",
+      "Bash(echo \"# empty — was shared/types/ at repo root \\(no files\\)\")",
+      "Bash(mkdir -p robots/shared/sensors)"
+    ]
+  }
+}
