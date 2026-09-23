@@ -732,11 +732,6 @@
     <span class="s-value" id="s-voc">—</span>
     <span class="s-unit">ppb</span>
   </div>
-  <div class="sensor-tile" id="tile-diff">
-    <span class="s-label">DIFF PRESS</span>
-    <span class="s-value" id="s-diff">—</span>
-    <span class="s-unit">Pa</span>
-  </div>
   <div class="sensor-tile" id="tile-bus-v">
     <span class="s-label">BUS V</span>
     <span class="s-value" id="s-bus-v">—</span>
@@ -756,52 +751,6 @@
     <span class="s-label">IMU CAL</span>
     <span class="s-value" id="s-cal">—</span>
     <span class="s-unit">S/G/A/M</span>
-  </div>
-  <div class="sensor-tile">
-    <span class="s-label">QUAT W</span>
-    <span class="s-value" id="s-quat-w">—</span>
-  </div>
-  <div class="sensor-tile">
-    <span class="s-label">QUAT X</span>
-    <span class="s-value" id="s-quat-x">—</span>
-  </div>
-  <div class="sensor-tile">
-    <span class="s-label">QUAT Y</span>
-    <span class="s-value" id="s-quat-y">—</span>
-  </div>
-  <div class="sensor-tile">
-    <span class="s-label">QUAT Z</span>
-    <span class="s-value" id="s-quat-z">—</span>
-  </div>
-  <div class="sensor-tile">
-    <span class="s-label">GYRO X</span>
-    <span class="s-value" id="s-gyro-x">—</span>
-    <span class="s-unit">°/s</span>
-  </div>
-  <div class="sensor-tile">
-    <span class="s-label">GYRO Y</span>
-    <span class="s-value" id="s-gyro-y">—</span>
-    <span class="s-unit">°/s</span>
-  </div>
-  <div class="sensor-tile">
-    <span class="s-label">GYRO Z</span>
-    <span class="s-value" id="s-gyro-z">—</span>
-    <span class="s-unit">°/s</span>
-  </div>
-  <div class="sensor-tile">
-    <span class="s-label">LIN X</span>
-    <span class="s-value" id="s-lin-x">—</span>
-    <span class="s-unit">m/s²</span>
-  </div>
-  <div class="sensor-tile">
-    <span class="s-label">LIN Y</span>
-    <span class="s-value" id="s-lin-y">—</span>
-    <span class="s-unit">m/s²</span>
-  </div>
-  <div class="sensor-tile">
-    <span class="s-label">LIN Z</span>
-    <span class="s-value" id="s-lin-z">—</span>
-    <span class="s-unit">m/s²</span>
   </div>
 </div>
 
@@ -2013,38 +1962,30 @@
       document.getElementById("tile-pi-temp").className = "sensor-tile" + (d.pi_temp > 80 ? " warn" : "");
 
       // ── Extended environment / power tiles (all remaining /sensors columns) ──
-      const _fix = v => v == null ? '—' : (+v).toFixed(1);
-      document.getElementById("s-bme-press").textContent = d.bme_press != null ? _fix(d.bme_press) : '—';
-      document.getElementById("s-sht-temp").textContent  = d.sht_temp  != null ? _fix(d.sht_temp)  : '—';
-      document.getElementById("s-sht-hum").textContent   = d.sht_hum   != null ? _fix(d.sht_hum)   : '—';
-      document.getElementById("s-scd-temp").textContent  = d.scd_temp  != null ? _fix(d.scd_temp)  : '—';
-      document.getElementById("s-scd-hum").textContent   = d.scd_hum   != null ? _fix(d.scd_hum)   : '—';
-      document.getElementById("s-co2").textContent       = d.co2       != null ? Math.round(+d.co2) : '—';
-      document.getElementById("s-voc").textContent       = d.voc_ppb   != null ? Math.round(+d.voc_ppb) : '—';
-      document.getElementById("s-diff").textContent      = d.diff_press!= null ? _fix(d.diff_press): '—';
-      document.getElementById("s-bus-v").textContent     = d.bus_v     != null ? (+d.bus_v).toFixed(2): '—';
-      document.getElementById("s-curr").textContent      = d.current_a != null ? (+d.current_a).toFixed(3): '—';
-      document.getElementById("s-power").textContent     = d.power_w   != null ? (+d.power_w).toFixed(2): '—';
-      document.getElementById("s-cal").textContent       =
-        (d.cal_sys != null || d.cal_gyro != null || d.cal_accel != null || d.cal_mag != null)
-          ? [d.cal_sys, d.cal_gyro, d.cal_accel, d.cal_mag]
-              .map(v => v == null ? '·' : v).join('/')
-          : '—';
-      // Quaternion / gyro / linear accel (IMU fusion)
-      document.getElementById("s-quat-w").textContent = d.quat_w != null ? (+d.quat_w).toFixed(4) : '—';
-      document.getElementById("s-quat-x").textContent = d.quat_x != null ? (+d.quat_x).toFixed(4) : '—';
-      document.getElementById("s-quat-y").textContent = d.quat_y != null ? (+d.quat_y).toFixed(4) : '—';
-      document.getElementById("s-quat-z").textContent = d.quat_z != null ? (+d.quat_z).toFixed(4) : '—';
-      document.getElementById("s-gyro-x").textContent = d.gyro_x != null ? _fix(d.gyro_x) : '—';
-      document.getElementById("s-gyro-y").textContent = d.gyro_y != null ? _fix(d.gyro_y) : '—';
-      document.getElementById("s-gyro-z").textContent = d.gyro_z != null ? _fix(d.gyro_z) : '—';
-      document.getElementById("s-lin-x").textContent  = d.lin_acc_x != null ? _fix(d.lin_acc_x) : '—';
-      document.getElementById("s-lin-y").textContent  = d.lin_acc_y != null ? _fix(d.lin_acc_y) : '—';
-      document.getElementById("s-lin-z").textContent  = d.lin_acc_z != null ? _fix(d.lin_acc_z) : '—';
+      // Sticky-hold: slow sensors (SCD41/SHT45/CO2/VOC/etc.) keep their last
+      // reading on screen instead of flickering back to '—' between slow polls.
+      // A value is only written when a fresh, non-empty reading arrives.
+      const _fix   = v => (+v).toFixed(1);
+      const _round = v => Math.round(+v);
+      const _set   = (id, v, fmt) => { if (v != null && v !== '') document.getElementById(id).textContent = fmt(v); };
+      _set("s-bme-press", d.bme_press, _fix);
+      _set("s-sht-temp",  d.sht_temp,  _fix);
+      _set("s-sht-hum",   d.sht_hum,   _fix);
+      _set("s-scd-temp",  d.scd_temp,  _fix);
+      _set("s-scd-hum",   d.scd_hum,   _fix);
+      _set("s-co2",       d.co2,       _round);
+      _set("s-voc",       d.voc_ppb,   _round);
+      _set("s-bus-v",     d.bus_v,     v => (+v).toFixed(2));
+      _set("s-curr",      d.current_a, v => (+v).toFixed(3));
+      _set("s-power",     d.power_w,   v => (+v).toFixed(2));
+      _set("s-cal",       (d.cal_sys != null || d.cal_gyro != null || d.cal_accel != null || d.cal_mag != null)
+                          ? [d.cal_sys, d.cal_gyro, d.cal_accel, d.cal_mag]
+                              .map(v => v == null ? '·' : v).join('/')
+                          : null,
+                          v => v);
       // Warn classes
       document.getElementById("tile-co2").className   = "sensor-tile" + (d.co2 != null && d.co2 > 1000 ? " warn" : "");
       document.getElementById("tile-voc").className   = "sensor-tile" + (d.voc_ppb != null && d.voc_ppb > 100 ? " warn" : "");
-      document.getElementById("tile-diff").className  = "sensor-tile" + (d.diff_press != null && Math.abs(d.diff_press) > 100 ? " warn" : "");
       document.getElementById("tile-bus-v").className = "sensor-tile" + (d.bus_v != null && d.bus_v < 10.5 ? " warn" : "");
       // ── NETWORK tile ────────────────────────────────────────────────────
       const netType  = d.net_type  || 'none';
