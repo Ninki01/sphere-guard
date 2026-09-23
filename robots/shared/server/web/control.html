@@ -1819,7 +1819,7 @@
     if (dist > maxR) { dx = dx / dist * maxR; dy = dy / dist * maxR; }
 
     joyPos.x = parseFloat((dx / maxR).toFixed(2));
-    joyPos.y = parseFloat((-dy / maxR).toFixed(2));
+    joyPos.y = parseFloat((dy / maxR).toFixed(2));   // ← Y inverted: push up = reverse, pull down = forward
 
     joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     document.getElementById("joy-x-val").textContent = joyPos.x.toFixed(2);
@@ -1852,7 +1852,7 @@
   document.addEventListener("mouseup",   () => { if (joyActive) stopJoy(); });
   document.addEventListener("contextmenu", e => e.preventDefault());
 
-  const keyMap  = { ArrowUp: [0, 1], ArrowDown: [0, -1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+  const keyMap  = { ArrowUp: [0,-1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
   const keyHeld = {};
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") { if (cfgOpen) { closeConfig(); return; } }
