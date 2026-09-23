@@ -18,7 +18,7 @@ import time
 from shared.util.clock import now_ms
 from shared.util.log   import warn
 
-TIMEOUT_MS     = 1000
+TIMEOUT_MS     = 500
 CHECK_INTERVAL = 0.1
 
 
