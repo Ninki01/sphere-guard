@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Battery, Thermometer, ArrowLeft, Droplets, Cpu, Gauge, Camera, Wind, Activity, Play, Square } from 'lucide-react';
+import { Battery, Thermometer, ArrowLeft, Droplets, Cpu, Gauge, Camera, Wind, Activity, Play, Square, Zap, Wifi, Compass } from 'lucide-react';
 import robotLogo from '../assets/robot_illustration.jpg';
 import { ref, onValue, set, update } from 'firebase/database';
 import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { rtdb, db } from '../lib/firebase';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import AllSensorsPanel from '../components/AllSensorsPanel';
+import useRobotSensors, { sensorText, sensorNum, internetLabel, resolveRobotUrl, saveRobotUrl } from '../hooks/useRobotSensors';
 
 function ChartEmpty() {
   return (
@@ -38,27 +39,67 @@ const C = {
 };
 
 function DashboardSG01() {
-  const [isConnected, setIsConnected] = useState(false);
   const [steering, setSteering] = useState(90);
   const [driveMode, setDriveMode] = useState('stop');
-  const [heading, setHeading] = useState(0);
 
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
-  const [robotStatusText, setRobotStatusText] = useState('OFFLINE');
 
   const [activeSession, setActiveSession] = useState(null);
   const [operatorName, setOperatorName] = useState('Admin');
   const [locationTag, setLocationTag] = useState('Main Duct A');
 
   const [sensorData, setSensorData] = useState({
-    battery: 0, batteryVoltage: 0, mcuTemp: 0, motorDriverTemp: 0,
-    internalTemp: 0, rssi: 0, distance: 0, pitch: 0, roll: 0,
-    envTemp: 0, humidity: 0, voc: 0, co2: 0,
-    sht45Temp: 0, sht45Hum: 0, diffPressure: 0,
+    battery: 0, batteryVoltage: 0, mcuTemp: 0, rssi: 0, distance: 0,
   });
 
   const [unifiedHistory, setUnifiedHistory] = useState([]);
   const [lastKnownPoint, setLastKnownPoint] = useState(null);
+
+  const [robotUrl, setRobotUrl] = useState(() =>
+    resolveRobotUrl('sg01_robot_url', import.meta.env.VITE_ROBOT_SG01_URL || ''));
+  const handleRobotUrl = (next) => setRobotUrl(saveRobotUrl('sg01_robot_url', next));
+
+  const handleSensorData = useCallback((data) => {
+    const newPoint = {
+      time: new Date().toLocaleTimeString('en-GB'),
+      co2: sensorNum(data.co2),
+      extTemp: sensorNum(data.scd_temp),
+      sht45Temp: sensorNum(data.sht_temp),
+      intTemp: sensorNum(data.bme_temp),
+      extHum: sensorNum(data.scd_hum),
+      sht45Hum: sensorNum(data.sht_hum),
+      intHum: sensorNum(data.bme_hum),
+      pressure: sensorNum(data.bme_press),
+      voc: sensorNum(data.voc_ppb),
+      diffPressure: sensorNum(data.diff_press),
+      bus_v: sensorNum(data.bus_v),
+      current_a: sensorNum(data.current_a),
+      power_w: sensorNum(data.power_w),
+      pi_temp: sensorNum(data.pi_temp),
+      pitch: sensorNum(data.pitch),
+      roll: sensorNum(data.roll),
+      heading: sensorNum(data.heading),
+      quat_w: sensorNum(data.quat_w),
+      quat_x: sensorNum(data.quat_x),
+      quat_y: sensorNum(data.quat_y),
+      quat_z: sensorNum(data.quat_z),
+      lin_acc_x: sensorNum(data.lin_acc_x),
+      lin_acc_y: sensorNum(data.lin_acc_y),
+      lin_acc_z: sensorNum(data.lin_acc_z),
+      gyro_x: sensorNum(data.gyro_x),
+      gyro_y: sensorNum(data.gyro_y),
+      gyro_z: sensorNum(data.gyro_z),
+      wifi_dbm: sensorNum(data.wifi_dbm),
+      latency_ms: sensorNum(data.latency_ms),
+      link_speed_mbps: sensorNum(data.link_speed_mbps),
+      wifi_quality: sensorNum(data.wifi_quality),
+      internet: sensorNum(data.internet),
+    };
+    setLastKnownPoint(newPoint);
+    setUnifiedHistory(prev => [...prev, newPoint].slice(-30));
+  }, []);
+
+  const { readings, error: sensorError } = useRobotSensors(robotUrl, handleSensorData);
 
   const sendDriveCommand = (mode) => {
     setDriveMode(mode);
@@ -113,57 +154,33 @@ function DashboardSG01() {
     const unsubscribe = onValue(ref(rtdb, 'robots/sg01'), (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const status = data.system?.connection?.status || 'OFFLINE';
-        setRobotStatusText(status);
-        setIsConnected(status === 'ONLINE');
         setActiveSession(data.system?.activeSessionId || null);
-        setHeading(data.telemetry?.imu_bno055?.yaw || 0);
-
         setSensorData({
           battery: data.battery?.percentage || 0,
           batteryVoltage: data.battery?.voltage_v || 0,
           mcuTemp: data.system?.temperature?.mcu || 0,
-          motorDriverTemp: data.system?.temperature?.motorDriver || 0,
           rssi: data.system?.connection?.rssi || 0,
           distance: data.obstacle?.distanceCm || 0,
-          pitch: data.telemetry?.imu_bno055?.pitch || 0,
-          roll: data.telemetry?.imu_bno055?.roll || 0,
-          internalTemp: data.sensors?.bme280_temperature_c || 0,
-          envTemp: data.sensors?.scd41_temperature_c || 0,
-          humidity: data.sensors?.scd41_humidity_percent || 0,
-          co2: data.sensors?.scd41_co2_ppm || 0,
-          voc: data.sensors?.gas_ppm || 0,
-          sht45Temp: data.sensors?.sht45_temperature_c || 0,
-          sht45Hum: data.sensors?.sht45_humidity_percent || 0,
-          diffPressure: data.sensors?.sdp810_diff_pressure_pa || 0,
         });
-
-        const timeString = new Date().toLocaleTimeString('en-GB');
-        const newPoint = {
-          time: timeString,
-          extTemp: data.sensors?.scd41_temperature_c || 0,
-          sht45Temp: data.sensors?.sht45_temperature_c || 0,
-          intTemp: data.sensors?.bme280_temperature_c || 0,
-          extHum: data.sensors?.scd41_humidity_percent || 0,
-          sht45Hum: data.sensors?.sht45_humidity_percent || 0,
-          intHum: data.sensors?.bme280_humidity_percent || 0,
-          co2: data.sensors?.scd41_co2_ppm || 0,
-          voc: data.sensors?.gas_ppm || 0,
-          pressure: data.sensors?.bme280_pressure_hpa || 0,
-          diffPressure: data.sensors?.sdp810_diff_pressure_pa || 0,
-        };
-        setLastKnownPoint(newPoint);
-        setUnifiedHistory(prev => [...prev, newPoint].slice(-30));
       }
     });
 
     return () => { unsubFirebase(); unsubscribe(); };
   }, []);
 
+  const robotOnline = Boolean(robotUrl) && Boolean(readings) && !sensorError;
+  const robotStatusText = !robotUrl
+    ? 'NO URL'
+    : sensorError
+      ? 'OFFLINE'
+      : readings
+        ? 'ONLINE'
+        : 'CONNECTING';
+
   const robotStatusColor = robotStatusText === 'ONLINE' ? C.sage
     : robotStatusText === 'OFFLINE' ? C.red : '#b59a00';
 
-  const isLive = isConnected && unifiedHistory.length >= 2;
+  const isLive = robotOnline && unifiedHistory.length >= 2;
   const chartData = unifiedHistory.length >= 2
     ? unifiedHistory
     : lastKnownPoint
@@ -176,6 +193,9 @@ function DashboardSG01() {
     border: `1px solid ${C.border}`, backgroundColor: C.cream,
     color: C.text, boxSizing: 'border-box', fontSize: '14px', outline: 'none',
   };
+
+  const r = readings || {};
+  const sectionHeading = { marginTop: '10px', marginBottom: '15px', color: C.sage, fontSize: '16px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' };
 
   return (
     <div className="dashboard-container">
@@ -270,8 +290,8 @@ function DashboardSG01() {
             </div>
 
             <div className="status-row" style={{ marginTop: '15px', borderTop: `1px solid ${C.border}`, paddingTop: '10px' }}>
-              <span>Signal (RSSI)</span>
-              <span style={{ color: C.text }}>{sensorData.rssi} dBm</span>
+              <span>WiFi Signal</span>
+              <span style={{ color: C.text }}>{sensorText(r.wifi_dbm)}{r.wifi_dbm !== '' && r.wifi_dbm !== undefined && r.wifi_dbm !== null ? ' dBm' : ''}</span>
             </div>
 
             <div className="status-row">
@@ -283,12 +303,12 @@ function DashboardSG01() {
 
             <div className="status-row">
               <span>Pitch Angle</span>
-              <span style={{ color: C.text }}>{sensorData.pitch}°</span>
+              <span style={{ color: C.text }}>{sensorText(r.pitch)}°</span>
             </div>
 
             <div className="status-row">
               <span>Roll Angle</span>
-              <span style={{ color: C.text }}>{sensorData.roll}°</span>
+              <span style={{ color: C.text }}>{sensorText(r.roll)}°</span>
             </div>
 
             <div className="status-row" style={{ marginTop: '15px', borderTop: `1px solid ${C.border}`, paddingTop: '10px' }}>
@@ -300,7 +320,7 @@ function DashboardSG01() {
 
             <div className="status-row">
               <span>Heading</span>
-              <span style={{ color: C.text }}>{heading}°</span>
+              <span style={{ color: C.text }}>{sensorText(r.heading)}°</span>
             </div>
           </div>
 
@@ -349,7 +369,7 @@ function DashboardSG01() {
         <main className="right-column">
 
           {/* Robot Status Cards */}
-          <h3 style={{ margin: '0 0 15px 0', color: C.sage, fontSize: '16px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>Robot Status</h3>
+          <h3 style={{ margin: '0 0 15px 0', ...sectionHeading, marginTop: 0 }}>Robot Status</h3>
           <div className="sensor-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '24px' }}>
 
             <div className="light-card">
@@ -373,7 +393,7 @@ function DashboardSG01() {
                 <span>Internal Temp</span>
                 <Thermometer size={18} color={C.tan} />
               </div>
-              <div className="card-value">{sensorData.internalTemp} <span className="unit">°C</span></div>
+              <div className="card-value">{sensorText(r.bme_temp)} <span className="unit">°C</span></div>
             </div>
 
             <div className="light-card">
@@ -386,8 +406,50 @@ function DashboardSG01() {
 
           </div>
 
+          {/* Power & Compute */}
+          <h3 style={sectionHeading}>Power &amp; Compute</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '30px' }}>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.red}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>Bus Voltage (INA226)</span><Zap size={16} color={C.red} />
+              </div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
+                {sensorText(r.bus_v)} <span style={{ fontSize: '14px', color: C.sage }}>V</span>
+              </div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.tan}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>Current (INA226)</span><Zap size={16} color={C.tan} />
+              </div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
+                {sensorText(r.current_a)} <span style={{ fontSize: '14px', color: C.sage }}>A</span>
+              </div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.sage}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>Power (INA226)</span><Zap size={16} color={C.sage} />
+              </div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
+                {sensorText(r.power_w)} <span style={{ fontSize: '14px', color: C.sage }}>W</span>
+              </div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.red}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>Pi SoC Temp</span><Cpu size={16} color={C.red} />
+              </div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
+                {sensorText(r.pi_temp)} <span style={{ fontSize: '14px', color: C.sage }}>°C</span>
+              </div>
+            </div>
+
+          </div>
+
           {/* Ducting Environment */}
-          <h3 style={{ marginTop: '10px', marginBottom: '15px', color: C.sage, fontSize: '16px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>Ducting Environment</h3>
+          <h3 style={sectionHeading}>Ducting Environment</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '30px' }}>
 
             <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.sage}`, margin: 0 }}>
@@ -395,7 +457,7 @@ function DashboardSG01() {
                 <span>Duct Temp (SCD41)</span><Thermometer size={16} color={C.sage} />
               </div>
               <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
-                {sensorData.envTemp} <span style={{ fontSize: '14px', color: C.sage }}>°C</span>
+                {sensorText(r.scd_temp)} <span style={{ fontSize: '14px', color: C.sage }}>°C</span>
               </div>
             </div>
 
@@ -404,7 +466,7 @@ function DashboardSG01() {
                 <span>Temp (SHT45)</span><Thermometer size={16} color={C.tan} />
               </div>
               <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
-                {sensorData.sht45Temp} <span style={{ fontSize: '14px', color: C.sage }}>°C</span>
+                {sensorText(r.sht_temp)} <span style={{ fontSize: '14px', color: C.sage }}>°C</span>
               </div>
             </div>
 
@@ -413,7 +475,7 @@ function DashboardSG01() {
                 <span>Humidity (SCD41)</span><Droplets size={16} color={C.red} />
               </div>
               <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
-                {sensorData.humidity} <span style={{ fontSize: '14px', color: C.sage }}>%</span>
+                {sensorText(r.scd_hum)} <span style={{ fontSize: '14px', color: C.sage }}>%</span>
               </div>
             </div>
 
@@ -422,7 +484,7 @@ function DashboardSG01() {
                 <span>Humidity (SHT45)</span><Droplets size={16} color={C.sage} />
               </div>
               <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
-                {sensorData.sht45Hum} <span style={{ fontSize: '14px', color: C.sage }}>%</span>
+                {sensorText(r.sht_hum)} <span style={{ fontSize: '14px', color: C.sage }}>%</span>
               </div>
             </div>
 
@@ -431,7 +493,7 @@ function DashboardSG01() {
                 <span>Gas (VOC)</span><Wind size={16} color={C.tan} />
               </div>
               <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
-                {sensorData.voc} <span style={{ fontSize: '14px', color: C.sage }}>ppm</span>
+                {sensorText(r.voc_ppb)} <span style={{ fontSize: '14px', color: C.sage }}>ppb</span>
               </div>
             </div>
 
@@ -440,7 +502,7 @@ function DashboardSG01() {
                 <span>Gas (CO2)</span><Wind size={16} color={C.red} />
               </div>
               <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
-                {sensorData.co2} <span style={{ fontSize: '14px', color: C.sage }}>ppm</span>
+                {sensorText(r.co2)} <span style={{ fontSize: '14px', color: C.sage }}>ppm</span>
               </div>
             </div>
 
@@ -449,7 +511,140 @@ function DashboardSG01() {
                 <span>Diff Pressure (SDP810)</span><Activity size={16} color={C.sage} />
               </div>
               <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
-                {sensorData.diffPressure} <span style={{ fontSize: '14px', color: C.sage }}>Pa</span>
+                {sensorText(r.diff_press)} <span style={{ fontSize: '14px', color: C.sage }}>Pa</span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* IMU */}
+          <h3 style={sectionHeading}>Attitude &amp; Motion (BNO055)</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '30px' }}>
+
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.red}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Quat W</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>{sensorText(r.quat_w)}</div>
+            </div>
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.red}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Quat X</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>{sensorText(r.quat_x)}</div>
+            </div>
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.red}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Quat Y</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>{sensorText(r.quat_y)}</div>
+            </div>
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.red}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Quat Z</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>{sensorText(r.quat_z)}</div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.sage}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Lin Acc X</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>{sensorText(r.lin_acc_x)}</div>
+            </div>
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.sage}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Lin Acc Y</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>{sensorText(r.lin_acc_y)}</div>
+            </div>
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.sage}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Lin Acc Z</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>{sensorText(r.lin_acc_z)}</div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.tan}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Gyro X</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>{sensorText(r.gyro_x)}</div>
+            </div>
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.tan}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Gyro Y</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>{sensorText(r.gyro_y)}</div>
+            </div>
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.tan}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Gyro Z</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>{sensorText(r.gyro_z)}</div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.red}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Cal Sys / Gyro / Accel / Mag</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>
+                {sensorText(r.cal_sys)} / {sensorText(r.cal_gyro)} / {sensorText(r.cal_accel)} / {sensorText(r.cal_mag)}
+              </div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '12px', borderLeft: `4px solid ${C.sage}`, margin: 0 }}>
+              <div style={{ color: C.sage, fontSize: '12px', marginBottom: '4px' }}>Pitch / Roll / Heading</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text }}>
+                {sensorText(r.pitch)}° / {sensorText(r.roll)}° / {sensorText(r.heading)}°
+              </div>
+            </div>
+
+          </div>
+
+          {/* Network */}
+          <h3 style={sectionHeading}>Network</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '30px' }}>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.sage}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>Net Type</span><Wifi size={16} color={C.sage} />
+              </div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>{sensorText(r.net_type)}</div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.tan}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>Network Name</span><Wifi size={16} color={C.tan} />
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text, wordBreak: 'break-all' }}>{sensorText(r.net_name)}</div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.red}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>IP Address</span><Wifi size={16} color={C.red} />
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: C.text, wordBreak: 'break-all' }}>{sensorText(r.ip_address)}</div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.sage}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>Internet</span><Compass size={16} color={C.sage} />
+              </div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>{internetLabel(r.internet)}</div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.sage}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>WiFi Signal</span><Wifi size={16} color={C.sage} />
+              </div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
+                {sensorText(r.wifi_dbm)} <span style={{ fontSize: '14px', color: C.sage }}>dBm</span>
+              </div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.tan}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>Latency</span><Activity size={16} color={C.tan} />
+              </div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
+                {sensorText(r.latency_ms)} <span style={{ fontSize: '14px', color: C.sage }}>ms</span>
+              </div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.red}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>Link Speed</span><Wifi size={16} color={C.red} />
+              </div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
+                {sensorText(r.link_speed_mbps)} <span style={{ fontSize: '14px', color: C.sage }}>Mbps</span>
+              </div>
+            </div>
+
+            <div className="dark-panel" style={{ padding: '15px', borderLeft: `4px solid ${C.sage}`, margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: C.sage, fontSize: '14px', marginBottom: '10px' }}>
+                <span>WiFi Quality</span><Wifi size={16} color={C.sage} />
+              </div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: C.text }}>
+                {sensorText(r.wifi_quality)} <span style={{ fontSize: '14px', color: C.sage }}>%</span>
               </div>
             </div>
 
@@ -482,7 +677,9 @@ function DashboardSG01() {
                 <span style={{ color: C.tan, marginLeft: 'auto', fontStyle: 'italic' }}>Robot {robotStatusText.toLowerCase()} — data frozen</span>
               </>
             ) : (
-              <span style={{ color: C.sage }}>Awaiting first connection...</span>
+              <span style={{ color: C.sage }}>
+                {!robotUrl ? 'Enter robot address in All Sensor Readings below.' : 'Awaiting first connection...'}
+              </span>
             )}
           </div>
 
@@ -523,12 +720,13 @@ function DashboardSG01() {
                     <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={C.chartGrid} vertical={false} />
                       <XAxis dataKey="time" stroke={C.chartAxis} fontSize={12} />
-                      <YAxis stroke={C.sage} fontSize={12} domain={[15, 55]} />
+                      <YAxis stroke={C.sage} fontSize={12} domain={['dataMin - 3', 'dataMax + 3']} />
                       <Tooltip contentStyle={C.tooltip} />
                       <Legend />
                       <Line type="monotone" dataKey="extTemp" name="Duct Temp (SCD41)" stroke={C.sage} strokeWidth={2} dot={false} isAnimationActive={false} />
                       <Line type="monotone" dataKey="sht45Temp" name="Duct Temp (SHT45)" stroke={C.tan} strokeWidth={2} dot={false} isAnimationActive={false} />
                       <Line type="monotone" dataKey="intTemp" name="Robot Temp (BME280)" stroke={C.red} strokeWidth={2} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="pi_temp" name="Pi SoC Temp" stroke={C.red} strokeWidth={1.5} strokeDasharray="2 4" dot={false} isAnimationActive={false} />
                       {!isLive && <ReferenceLine y={lastKnownPoint?.extTemp} stroke={C.sage} strokeDasharray="6 3"
                         label={{ value: `${lastKnownPoint?.extTemp}°C`, fill: C.sage, fontSize: 11, position: 'insideTopRight' }} />}
                     </LineChart>
@@ -548,7 +746,7 @@ function DashboardSG01() {
                     <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={C.chartGrid} vertical={false} />
                       <XAxis dataKey="time" stroke={C.chartAxis} fontSize={12} />
-                      <YAxis stroke={C.red} fontSize={12} domain={['dataMin - 5', 'dataMax + 5']} />
+                      <YAxis stroke={C.sage} fontSize={12} domain={['dataMin - 5', 'dataMax + 5']} />
                       <Tooltip contentStyle={C.tooltip} />
                       <Line type="monotone" dataKey="pressure" name="Pressure (hPa)" stroke={C.red} strokeWidth={2} dot={false} isAnimationActive={false} />
                       {!isLive && <ReferenceLine y={lastKnownPoint?.pressure} stroke={C.red} strokeDasharray="6 3"
@@ -587,7 +785,7 @@ function DashboardSG01() {
             {/* VOC */}
             <div className="dark-panel" style={{ padding: '15px', opacity: isLive ? 1 : 0.75, transition: 'opacity 0.4s' }}>
               <h3 style={{ margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Wind size={20} color={C.tan} /> Gas Concentration — VOC (ppm)
+                <Wind size={20} color={C.tan} /> Gas Concentration — VOC (ppb)
               </h3>
               {hasChartData ? (
                 <div style={{ width: '100%', height: '200px' }}>
@@ -596,11 +794,11 @@ function DashboardSG01() {
                       <CartesianGrid strokeDasharray="3 3" stroke={C.chartGrid} vertical={false} />
                       <XAxis dataKey="time" stroke={C.chartAxis} fontSize={12} />
                       <YAxis stroke={C.tan} fontSize={12} domain={['dataMin - 5', 'dataMax + 5']}
-                        label={{ value: 'PPM', angle: -90, position: 'insideLeft', fill: C.sage, fontSize: 10 }} />
+                        label={{ value: 'PPB', angle: -90, position: 'insideLeft', fill: C.sage, fontSize: 10 }} />
                       <Tooltip contentStyle={C.tooltip} />
-                      <Line type="monotone" dataKey="voc" name="VOC (ppm)" stroke={C.tan} strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="voc" name="VOC (ppb)" stroke={C.tan} strokeWidth={2} dot={false} isAnimationActive={false} />
                       {!isLive && <ReferenceLine y={lastKnownPoint?.voc} stroke={C.tan} strokeDasharray="6 3"
-                        label={{ value: `${lastKnownPoint?.voc} ppm`, fill: C.tan, fontSize: 11, position: 'insideTopRight' }} />}
+                        label={{ value: `${lastKnownPoint?.voc} ppb`, fill: C.tan, fontSize: 11, position: 'insideTopRight' }} />}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -608,7 +806,7 @@ function DashboardSG01() {
             </div>
 
             {/* Differential Pressure */}
-            <div className="dark-panel" style={{ padding: '15px', marginBottom: '24px', opacity: isLive ? 1 : 0.75, transition: 'opacity 0.4s' }}>
+            <div className="dark-panel" style={{ padding: '15px', opacity: isLive ? 1 : 0.75, transition: 'opacity 0.4s' }}>
               <h3 style={{ margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Activity size={20} color={C.sage} /> Differential Pressure — SDP810 (Pa)
               </h3>
@@ -630,13 +828,129 @@ function DashboardSG01() {
               ) : <ChartEmpty />}
             </div>
 
+            {/* Power */}
+            <div className="dark-panel" style={{ padding: '15px', opacity: isLive ? 1 : 0.75, transition: 'opacity 0.4s' }}>
+              <h3 style={{ margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Zap size={20} color={C.red} /> Power (INA226)
+              </h3>
+              {hasChartData ? (
+                <div style={{ width: '100%', height: '250px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={C.chartGrid} vertical={false} />
+                      <XAxis dataKey="time" stroke={C.chartAxis} fontSize={12} />
+                      <YAxis stroke={C.sage} fontSize={12} domain={['dataMin - 0.5', 'dataMax + 0.5']} />
+                      <Tooltip contentStyle={C.tooltip} />
+                      <Legend />
+                      <Line type="monotone" dataKey="bus_v" name="Bus Voltage (V)" stroke={C.red} strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="current_a" name="Current (A)" stroke={C.tan} strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="power_w" name="Power (W)" stroke={C.sage} strokeWidth={2} dot={false} isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : <ChartEmpty />}
+            </div>
+
+            {/* IMU orientation */}
+            <div className="dark-panel" style={{ padding: '15px', opacity: isLive ? 1 : 0.75, transition: 'opacity 0.4s' }}>
+              <h3 style={{ margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Compass size={20} color={C.red} /> IMU Orientation (°)
+              </h3>
+              {hasChartData ? (
+                <div style={{ width: '100%', height: '250px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={C.chartGrid} vertical={false} />
+                      <XAxis dataKey="time" stroke={C.chartAxis} fontSize={12} />
+                      <YAxis stroke={C.red} fontSize={12} domain={['dataMin - 10', 'dataMax + 10']}
+                        label={{ value: 'degrees', angle: -90, position: 'insideLeft', fill: C.sage, fontSize: 10 }} />
+                      <Tooltip contentStyle={C.tooltip} />
+                      <Legend />
+                      <Line type="monotone" dataKey="pitch" name="Pitch" stroke={C.red} strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="roll" name="Roll" stroke={C.tan} strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="heading" name="Heading" stroke={C.sage} strokeWidth={2} dot={false} isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : <ChartEmpty />}
+            </div>
+
+            {/* IMU gyro */}
+            <div className="dark-panel" style={{ padding: '15px', opacity: isLive ? 1 : 0.75, transition: 'opacity 0.4s' }}>
+              <h3 style={{ margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Compass size={20} color={C.tan} /> IMU Gyroscope (rad/s)
+              </h3>
+              {hasChartData ? (
+                <div style={{ width: '100%', height: '250px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={C.chartGrid} vertical={false} />
+                      <XAxis dataKey="time" stroke={C.chartAxis} fontSize={12} />
+                      <YAxis stroke={C.tan} fontSize={12} domain={['dataMin - 0.5', 'dataMax + 0.5']} />
+                      <Tooltip contentStyle={C.tooltip} />
+                      <Legend />
+                      <Line type="monotone" dataKey="gyro_x" name="Gyro X" stroke={C.red} strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="gyro_y" name="Gyro Y" stroke={C.tan} strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="gyro_z" name="Gyro Z" stroke={C.sage} strokeWidth={2} dot={false} isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : <ChartEmpty />}
+            </div>
+
+            {/* IMU linear accel */}
+            <div className="dark-panel" style={{ padding: '15px', opacity: isLive ? 1 : 0.75, transition: 'opacity 0.4s' }}>
+              <h3 style={{ margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Compass size={20} color={C.sage} /> IMU Linear Acceleration (m/s²)
+              </h3>
+              {hasChartData ? (
+                <div style={{ width: '100%', height: '250px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={C.chartGrid} vertical={false} />
+                      <XAxis dataKey="time" stroke={C.chartAxis} fontSize={12} />
+                      <YAxis stroke={C.sage} fontSize={12} domain={['dataMin - 1', 'dataMax + 1']} />
+                      <Tooltip contentStyle={C.tooltip} />
+                      <Legend />
+                      <Line type="monotone" dataKey="lin_acc_x" name="Lin Acc X" stroke={C.red} strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="lin_acc_y" name="Lin Acc Y" stroke={C.tan} strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="lin_acc_z" name="Lin Acc Z" stroke={C.sage} strokeWidth={2} dot={false} isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : <ChartEmpty />}
+            </div>
+
+            {/* Network */}
+            <div className="dark-panel" style={{ padding: '15px', marginBottom: '24px', opacity: isLive ? 1 : 0.75, transition: 'opacity 0.4s' }}>
+              <h3 style={{ margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Wifi size={20} color={C.sage} /> Network Quality
+              </h3>
+              {hasChartData ? (
+                <div style={{ width: '100%', height: '250px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={C.chartGrid} vertical={false} />
+                      <XAxis dataKey="time" stroke={C.chartAxis} fontSize={12} />
+                      <YAxis yAxisId="left" stroke={C.sage} fontSize={12} domain={[0, 100]} />
+                      <YAxis yAxisId="right" orientation="right" stroke={C.tan} fontSize={12} domain={['dataMin - 10', 'dataMax + 10']} />
+                      <Tooltip contentStyle={C.tooltip} />
+                      <Legend />
+                      <Line yAxisId="left" type="monotone" dataKey="wifi_quality" name="WiFi Quality (%)" stroke={C.sage} strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line yAxisId="right" type="monotone" dataKey="latency_ms" name="Latency (ms)" stroke={C.tan} strokeWidth={2} dot={false} isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : <ChartEmpty />}
+            </div>
+
           </div>
 
           {/* All Sensor Readings */}
           <AllSensorsPanel
             title="All Sensor Readings"
-            defaultUrl={import.meta.env.VITE_ROBOT_SG01_URL || ''}
-            storageKey="sg01_robot_url"
+            url={robotUrl}
+            onUrlChange={handleRobotUrl}
             accent={C.sage}
           />
 

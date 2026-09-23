@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { RefreshCw, Settings2 } from 'lucide-react';
+import useRobotSensors from '../hooks/useRobotSensors';
 
 /* Shared accent palette (matches the dashboard pages). */
 const P = {
@@ -113,57 +114,34 @@ const GROUPS = [
 
 const fmt = (v) => (v === '' || v === null || v === undefined) ? '—' : String(v);
 
-function AllSensorsPanel({ title, defaultUrl = '', storageKey, accent = P.sage }) {
-  const [url, setUrl] = useState(() => localStorage.getItem(storageKey) || defaultUrl || '');
-  const [inputUrl, setInputUrl] = useState(url);
-  const [readings, setReadings] = useState(null);
-  const [lastUpdate, setLastUpdate] = useState(null);
-  const [error, setError] = useState(null);
-  const [expanded, setExpanded] = useState(true);
-  const timerRef = useRef(null);
-
-  const connect = useCallback(() => {
-    const clean = inputUrl.trim().replace(/\/+$/, '');
-    setUrl(clean);
-    if (clean) {
-      localStorage.setItem(storageKey, clean);
-    } else {
-      localStorage.removeItem(storageKey);
+function AllSensorsPanel({ title, defaultUrl = '', storageKey, accent = P.sage, url: urlProp, onUrlChange }) {
+  const [internalUrl, setInternalUrl] = useState(() => {
+    try {
+      return localStorage.getItem(storageKey) || defaultUrl || '';
+    } catch {
+      return defaultUrl || '';
     }
-  }, [inputUrl, storageKey]);
+  });
+  const url = urlProp !== undefined ? urlProp : internalUrl;
+  const [inputUrl, setInputUrl] = useState(url);
+  const [expanded, setExpanded] = useState(true);
 
-  useEffect(() => {
-    if (!url) return undefined;
+  const connect = () => {
+    const clean = inputUrl.trim().replace(/\/+$/, '');
+    if (onUrlChange) {
+      onUrlChange(clean);
+      return;
+    }
+    setInternalUrl(clean);
+    try {
+      if (clean) localStorage.setItem(storageKey, clean);
+      else localStorage.removeItem(storageKey);
+    } catch {
+      /* localStorage unavailable */
+    }
+  };
 
-    let stopped = false;
-    let inFlight = false;
-
-    const tick = async () => {
-      if (inFlight || stopped) return;
-      inFlight = true;
-      try {
-        const res = await fetch(url + '/sensors', { signal: AbortSignal.timeout(3000) });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!stopped) {
-          setReadings(data);
-          setError(null);
-          setLastUpdate(new Date());
-        }
-      } catch (e) {
-        if (!stopped) setError(e.name === 'TimeoutError' ? 'timeout' : e.message);
-      } finally {
-        inFlight = false;
-      }
-    };
-
-    tick();
-    timerRef.current = setInterval(tick, 1500);
-    return () => {
-      stopped = true;
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [url]);
+  const { readings, error, lastUpdate } = useRobotSensors(url);
 
   const onlineMap = {};
   (readings?._hardware?.sensors || []).forEach((s) => {
